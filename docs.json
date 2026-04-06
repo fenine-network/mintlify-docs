@@ -145,7 +145,7 @@
     "global": {
       "anchors": [
         {
-          "anchor": "dApps",
+          "anchor": "Stake",
           "href": "https://stake.fene.app",
           "icon": "first-order-alt"
         },
@@ -153,6 +153,11 @@
           "anchor": "Bridge",
           "href": "https://bridge.fene.app",
           "icon": "bridge"
+        },
+        {
+          "anchor": "Explorer",
+          "href": "https://explorer.fene.app",
+          "icon": "search"
         }
       ]
     }
