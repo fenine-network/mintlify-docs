@@ -1,0 +1,852 @@
+---
+title: 'Troubleshooting'
+description: 'Common issues and solutions for Fenine nodes'
+icon: 'wrench'
+---
+
+## Quick Diagnostics
+
+Run these checks first:
+
+```bash
+# Node status
+sudo systemctl status fenine
+
+# Recent logs
+sudo journalctl -u fenine -n 100
+
+# Sync status
+curl -X POST http://localhost:8545 \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}'
+
+# Peer count
+curl -X POST http://localhost:8545 \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"net_peerCount","params":[],"id":1}'
+```
+
+## Common Issues
+
+<AccordionGroup>
+  <Accordion title="Node Won't Start">
+    ### Symptoms
+    
+    ```
+    ● fenine.service - Fenine Full Node
+       Loaded: loaded
+       Active: failed (Result: exit-code)
+    ```
+    
+    ### Causes & Solutions
+    
+    **1. Permission Issues**
+    
+    ```bash
+    # Check ownership
+    ls -la /var/lib/fenine
+    
+    # Fix permissions
+    sudo chown -R $USER:$USER /var/lib/fenine
+    sudo chmod 755 /var/lib/fenine
+    ```
+    
+    **2. Port Already in Use**
+    
+    ```bash
+    # Check what's using port 8545
+    sudo lsof -i :8545
+    
+    # Kill process or change port in config
+    sudo nano /var/lib/fenine/config.toml
+    # Change HTTPPort to 8546
+    ```
+    
+    **3. Corrupted Database**
+    
+    ```bash
+    # Check logs for "database corrupted"
+    sudo journalctl -u fenine -n 200 | grep -i corrupt
+    
+    # Remove and re-initialize
+    sudo systemctl stop fenine
+    sudo rm -rf /var/lib/fenine/geth
+    fene-geth init /var/lib/fenine/genesis.json \
+      --datadir /var/lib/fenine
+    sudo systemctl start fenine
+    ```
+    
+    **4. Missing Genesis File**
+    
+    ```bash
+    # Re-download genesis
+    wget https://raw.githubusercontent.com/fenines-network/genesis/main/mainnet.json \
+      -O /var/lib/fenine/genesis.json
+    
+    # Re-initialize
+    fene-geth init /var/lib/fenine/genesis.json \
+      --datadir /var/lib/fenine
+    ```
+    
+    **5. Insufficient Disk Space**
+    
+    ```bash
+    # Check disk usage
+    df -h /var/lib/fenine
+    
+    # Free up space or expand disk
+    sudo apt autoremove -y
+    sudo journalctl --vacuum-time=7d
+    ```
+  </Accordion>
+
+  <Accordion title="Sync Not Progressing">
+    ### Symptoms
+    
+    - Block height not increasing
+    - Stuck at specific block number
+    - "Syncing" but no progress
+    
+    ### Solutions
+    
+    **1. No Peers Connected**
+    
+    ```bash
+    # Check peer count
+    curl -X POST http://localhost:8545 \
+      -d '{"jsonrpc":"2.0","method":"net_peerCount","params":[],"id":1}'
+    
+    # If 0x0, add bootnodes
+    sudo systemctl stop fenine
+    sudo nano /etc/systemd/system/fenine.service
+    
+    # Add to ExecStart:
+    --bootnodes "enode://[BOOTNODE1]@bootnode1.fene.app:30303,enode://[BOOTNODE2]@bootnode2.fene.app:30303"
+    
+    sudo systemctl daemon-reload
+    sudo systemctl start fenine
+    ```
+    
+    **2. Firewall Blocking P2P**
+    
+    ```bash
+    # Check firewall
+    sudo ufw status
+    
+    # Allow P2P port
+    sudo ufw allow 30303/tcp
+    sudo ufw allow 30303/udp
+    
+    # Restart node
+    sudo systemctl restart fenine
+    ```
+    
+    **3. Stuck on Bad Block**
+    
+    ```bash
+    # Check logs for "bad block"
+    sudo journalctl -u fenine | grep -i "bad block"
+    
+    # Rollback and re-sync
+    fene-geth removedb --datadir /var/lib/fenine
+    fene-geth init /var/lib/fenine/genesis.json \
+      --datadir /var/lib/fenine
+    sudo systemctl start fenine
+    ```
+    
+    **4. Clock Skew**
+    
+    ```bash
+    # Check system time
+    timedatectl
+    
+    # If wrong, sync with NTP
+    sudo timedatectl set-ntp true
+    
+    # Restart node
+    sudo systemctl restart fenine
+    ```
+    
+    **5. Network Issues**
+    
+    ```bash
+    # Test connectivity to bootnode
+    nc -zv bootnode1.fene.app 30303
+    
+    # Check DNS resolution
+    nslookup bootnode1.fene.app
+    
+    # Try different network (if behind NAT/proxy)
+    ```
+  </Accordion>
+
+  <Accordion title="High Memory Usage">
+    ### Symptoms
+    
+    - Node using &gt;90% RAM
+    - OOM killer stopping process
+    - Swap usage high
+    
+    ### Solutions
+    
+    **1. Reduce Cache Size**
+    
+    ```bash
+    sudo systemctl stop fenine
+    sudo nano /etc/systemd/system/fenine.service
+    
+    # Change --cache 4096 to lower value:
+    --cache 2048  # For 16GB RAM
+    --cache 1024  # For 8GB RAM
+    
+    sudo systemctl daemon-reload
+    sudo systemctl start fenine
+    ```
+    
+    **2. Enable Swap**
+    
+    ```bash
+    # Check swap
+    free -h
+    
+    # Create 8GB swap file
+    sudo fallocate -l 8G /swapfile
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    
+    # Make permanent
+    echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+    ```
+    
+    **3. Memory Leak (Node Bug)**
+    
+    ```bash
+    # Check if memory grows indefinitely
+    watch -n 5 'free -h'
+    
+    # If leak, upgrade to latest version
+    # See upgrade guide
+    ```
+    
+    **4. Reduce Max Peers**
+    
+    ```bash
+    sudo nano /var/lib/fenine/config.toml
+    
+    # Change:
+    [Node.P2P]
+    MaxPeers = 25  # Reduce from 50
+    
+    sudo systemctl restart fenine
+    ```
+  </Accordion>
+
+  <Accordion title="High CPU Usage">
+    ### Symptoms
+    
+    - CPU constantly &gt;90%
+    - System becomes unresponsive
+    - High temperature
+    
+    ### Solutions
+    
+    **1. Sync in Progress**
+    
+    ```bash
+    # Check if syncing
+    curl -X POST http://localhost:8545 \
+      -d '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}'
+    
+    # If syncing, high CPU is normal
+    # Wait for sync to complete
+    ```
+    
+    **2. Too Many RPC Requests**
+    
+    ```bash
+    # Check RPC request rate
+    sudo journalctl -u fenine | grep "rpc" | tail -100
+    
+    # Add rate limiting (nginx example)
+    limit_req_zone $binary_remote_addr zone=rpc:10m rate=10r/s;
+    
+    location / {
+      limit_req zone=rpc burst=20;
+      proxy_pass http://localhost:8545;
+    }
+    ```
+    
+    **3. Mining/Validator Process**
+    
+    ```bash
+    # Check if accidentally mining
+    fene-geth attach /var/lib/fenine/geth.ipc
+    > eth.mining
+    # Should return false for non-validators
+    
+    > miner.stop()  # If true
+    > exit
+    ```
+    
+    **4. CPU Affinity**
+    
+    ```bash
+    # Limit to specific CPU cores
+    sudo systemctl stop fenine
+    sudo nano /etc/systemd/system/fenine.service
+    
+    # Add after [Service]
+    CPUAffinity=0 1 2 3  # Use only cores 0-3
+    
+    sudo systemctl daemon-reload
+    sudo systemctl start fenine
+    ```
+  </Accordion>
+
+  <Accordion title="RPC Not Responding">
+    ### Symptoms
+    
+    - Connection refused on port 8545
+    - Timeout errors
+    - "Failed to connect" messages
+    
+    ### Solutions
+    
+    **1. RPC Not Enabled**
+    
+    ```bash
+    # Check config
+    cat /var/lib/fenine/config.toml | grep HTTPHost
+    
+    # Should be:
+    [Node]
+    HTTPHost = "0.0.0.0"
+    HTTPPort = 8545
+    
+    # If missing, add and restart
+    ```
+    
+    **2. Firewall Blocking**
+    
+    ```bash
+    # Check if port open
+    sudo netstat -tlnp | grep 8545
+    
+    # Allow through firewall
+    sudo ufw allow 8545/tcp
+    
+    # Test locally
+    curl http://localhost:8545
+    ```
+    
+    **3. Binding to Localhost Only**
+    
+    ```bash
+    # Check HTTPHost
+    cat /var/lib/fenine/config.toml | grep HTTPHost
+    
+    # Change from 127.0.0.1 to 0.0.0.0
+    HTTPHost = "0.0.0.0"
+    
+    sudo systemctl restart fenine
+    ```
+    
+    **4. RPC Methods Disabled**
+    
+    ```bash
+    # Check enabled modules
+    curl -X POST http://localhost:8545 \
+      -d '{"jsonrpc":"2.0","method":"rpc_modules","params":[],"id":1}'
+    
+    # Enable missing modules
+    sudo nano /var/lib/fenine/config.toml
+    
+    HTTPModules = ["eth", "net", "web3", "fenine"]
+    
+    sudo systemctl restart fenine
+    ```
+  </Accordion>
+
+  <Accordion title="Disk Full">
+    ### Symptoms
+    
+    - Node crashes with "no space left"
+    - Writes fail
+    - Database corruption
+    
+    ### Solutions
+    
+    **1. Clear Journal Logs**
+    
+    ```bash
+    # Check log size
+    sudo journalctl --disk-usage
+    
+    # Clear old logs
+    sudo journalctl --vacuum-time=7d
+    sudo journalctl --vacuum-size=1G
+    ```
+    
+    **2. Enable Pruning**
+    
+    ```bash
+    # Stop node
+    sudo systemctl stop fenine
+    
+    # Enable pruning in config
+    sudo nano /var/lib/fenine/config.toml
+    
+    [Eth]
+    NoPruning = false  # Enable pruning
+    
+    # Re-sync (pruning only works from genesis)
+    sudo rm -rf /var/lib/fenine/geth
+    fene-geth init /var/lib/fenine/genesis.json \
+      --datadir /var/lib/fenine
+    sudo systemctl start fenine
+    ```
+    
+    **3. Move Data to Larger Disk**
+    
+    ```bash
+    # Stop node
+    sudo systemctl stop fenine
+    
+    # Copy to new disk
+    sudo rsync -av /var/lib/fenine/ /mnt/new-disk/fenine/
+    
+    # Update mount point
+    sudo mv /var/lib/fenine /var/lib/fenine.old
+    sudo ln -s /mnt/new-disk/fenine /var/lib/fenine
+    
+    # Start node
+    sudo systemctl start fenine
+    
+    # After verification, remove old data
+    # sudo rm -rf /var/lib/fenine.old
+    ```
+    
+    **4. Clean Docker (if using Docker)**
+    
+    ```bash
+    docker system prune -a
+    docker volume prune
+    ```
+  </Accordion>
+
+  <Accordion title="Peer Connection Issues">
+    ### Symptoms
+    
+    - Peer count stays at 0 or very low
+    - Can't find peers
+    - Connections drop frequently
+    
+    ### Solutions
+    
+    **1. NAT/Router Issues**
+    
+    ```bash
+    # Enable UPnP in config
+    sudo nano /var/lib/fenine/config.toml
+    
+    [Node.P2P]
+    NAT = "upnp"
+    
+    # Or manually forward port 30303 on router
+    ```
+    
+    **2. ISP Blocking P2P**
+    
+    ```bash
+    # Change P2P port
+    sudo nano /var/lib/fenine/config.toml
+    
+    [Node.P2P]
+    ListenAddr = ":40404"  # Different port
+    
+    sudo systemctl restart fenine
+    ```
+    
+    **3. Static Peers**
+    
+    ```bash
+    # Add trusted peers
+    sudo nano /var/lib/fenine/geth/static-nodes.json
+    
+    [
+      "enode://[PEER1]@ip1:30303",
+      "enode://[PEER2]@ip2:30303"
+    ]
+    
+    sudo systemctl restart fenine
+    ```
+    
+    **4. Discovery Issues**
+    
+    ```bash
+    # Enable verbose P2P logging
+    sudo systemctl stop fenine
+    
+    # Add to service file:
+    --verbosity 4 --vmodule p2p=5
+    
+    sudo systemctl daemon-reload
+    sudo systemctl start fenine
+    
+    # Check logs
+    sudo journalctl -u fenine -f | grep p2p
+    ```
+  </Accordion>
+
+  <Accordion title="Database Corruption">
+    ### Symptoms
+    
+    ```
+    Fatal: Failed to open database
+    Error: corrupted block
+    Panic: leveldb: corruption
+    ```
+    
+    ### Solutions
+    
+    **1. Try Repair**
+    
+    ```bash
+    sudo systemctl stop fenine
+    
+    # Attempt repair
+    fene-geth db inspect \
+      --datadir /var/lib/fenine
+    
+    # If repair succeeds
+    sudo systemctl start fenine
+    ```
+    
+    **2. Restore from Backup**
+    
+    ```bash
+    sudo systemctl stop fenine
+    
+    # Restore
+    sudo rm -rf /var/lib/fenine/geth
+    sudo tar -xzf /backup/fenine-YYYYMMDD.tar.gz \
+      -C /var/lib/fenine
+    
+    sudo systemctl start fenine
+    ```
+    
+    **3. Full Re-sync**
+    
+    ```bash
+    sudo systemctl stop fenine
+    
+    # Remove corrupted data
+    sudo rm -rf /var/lib/fenine/geth
+    
+    # Re-initialize
+    fene-geth init /var/lib/fenine/genesis.json \
+      --datadir /var/lib/fenine
+    
+    sudo systemctl start fenine
+    ```
+  </Accordion>
+
+  <Accordion title="Node Falls Behind Network">
+    ### Symptoms
+    
+    - Always 10-100 blocks behind
+    - Catches up then falls behind again
+    - Slow block processing
+    
+    ### Solutions
+    
+    **1. Insufficient Resources**
+    
+    ```bash
+    # Check system resources
+    htop
+    
+    # Upgrade hardware or reduce load
+    # See hardware requirements
+    ```
+    
+    **2. Slow Disk I/O**
+    
+    ```bash
+    # Test disk speed
+    sudo hdparm -Tt /dev/sda
+    
+    # Should be &gt;100 MB/s
+    # If slow, upgrade to NVMe SSD
+    ```
+    
+    **3. Network Latency**
+    
+    ```bash
+    # Test latency to peers
+    fene-geth attach /var/lib/fenine/geth.ipc
+    > admin.peers.forEach(function(p) {
+        console.log(p.network.inbound, p.network.localAddress)
+      })
+    
+    # High latency (&gt;200ms)? Add closer peers
+    ```
+    
+    **4. Increase Cache**
+    
+    ```bash
+    # If you have RAM available
+    sudo nano /etc/systemd/system/fenine.service
+    
+    # Increase --cache
+    --cache 8192  # For 32GB+ RAM
+    
+    sudo systemctl daemon-reload
+    sudo systemctl restart fenine
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Error Messages
+
+Common error messages and what they mean:
+
+| Error | Meaning | Solution |
+|-------|---------|----------|
+| `Fatal: Failed to register` | Port in use | Change port or kill process |
+| `Error: genesis mismatch` | Wrong network | Re-download correct genesis.json |
+| `Unclean shutdown detected` | Node crashed last time | Check logs, may need db repair |
+| `Out of memory` | Insufficient RAM | Reduce cache or add swap |
+| `Peer handshake failed` | Network/version mismatch | Update to latest version |
+| `Database compaction needed` | DB fragmentation | Stop node, compact, restart |
+| `Insufficient funds` | (From dApp) Not an error | User needs more FEN |
+| `Transaction underpriced` | Gas price too low | Increase gas price |
+
+## Performance Issues
+
+<Tabs>
+  <Tab title="Slow RPC Response">
+    ### Symptoms
+    
+    - RPC calls take &gt;1 second
+    - Timeouts on complex queries
+    - High latency
+    
+    ### Solutions
+    
+    ```bash
+    # 1. Increase cache
+    --cache 4096
+    
+    # 2. Add more RAM
+    # See hardware requirements
+    
+    # 3. Use nginx caching
+    proxy_cache_path /tmp/nginx-cache levels=1:2 keys_zone=rpc_cache:10m;
+    
+    location / {
+      proxy_cache rpc_cache;
+      proxy_cache_valid 200 1s;
+      proxy_pass http://localhost:8545;
+    }
+    
+    # 4. Rate limit expensive calls
+    # Block eth_getLogs with large block ranges
+    ```
+  </Tab>
+
+  <Tab title="High Latency">
+    ### Causes
+    
+    - Overloaded node
+    - Slow disk I/O
+    - Network congestion
+    - Too many concurrent requests
+    
+    ### Solutions
+    
+    ```bash
+    # Monitor with metrics
+    curl http://localhost:6060/debug/metrics/prometheus
+    
+    # Look for:
+    # - High disk wait time
+    # - High CPU usage
+    # - Memory pressure
+    
+    # Scale horizontally (multiple nodes + load balancer)
+    ```
+  </Tab>
+
+  <Tab title="Memory Leaks">
+    ### Detection
+    
+    ```bash
+    # Monitor memory over time
+    watch -n 10 'free -h'
+    
+    # If steadily increasing, likely leak
+    ```
+    
+    ### Solutions
+    
+    ```bash
+    # 1. Restart node daily (temporary)
+    crontab -e
+    0 3 * * * systemctl restart fenine
+    
+    # 2. Upgrade to latest version
+    # Leaks often fixed in updates
+    
+    # 3. Report bug with diagnostics
+    sudo journalctl -u fenine &gt; fenine.log
+    # Submit to GitHub issues
+    ```
+  </Tab>
+</Tabs>
+
+## Diagnostic Tools
+
+### Health Check Script
+
+```bash
+#!/bin/bash
+
+echo "=== Fenine Node Diagnostics ==="
+
+# Service status
+echo -e "\n[Service Status]"
+systemctl is-active fenine && echo "✓ Running" || echo "✗ Stopped"
+
+# Disk space
+echo -e "\n[Disk Space]"
+df -h /var/lib/fenine | tail -1
+
+# Memory
+echo -e "\n[Memory]"
+free -h | grep Mem
+
+# Peers
+echo -e "\n[Peer Count]"
+PEERS=$(curl -s -X POST http://localhost:8545 \
+  -d '{"jsonrpc":"2.0","method":"net_peerCount","params":[],"id":1}' | \
+  jq -r '.result')
+echo "Peers: $((16#${PEERS:2}))"
+
+# Sync status
+echo -e "\n[Sync Status]"
+SYNC=$(curl -s -X POST http://localhost:8545 \
+  -d '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}' | \
+  jq -r '.result')
+if [ "$SYNC" = "false" ]; then
+  echo "✓ Synced"
+else
+  echo "Syncing..."
+fi
+
+# Recent errors
+echo -e "\n[Recent Errors]"
+sudo journalctl -u fenine -p err -n 5 --no-pager
+
+echo -e "\n======================="
+```
+
+### Log Analysis
+
+```bash
+# Find errors
+sudo journalctl -u fenine -p err --since today
+
+# Find warnings
+sudo journalctl -u fenine -p warning --since "1 hour ago"
+
+# Find specific pattern
+sudo journalctl -u fenine | grep -i "peer"
+
+# Follow logs in real-time
+sudo journalctl -u fenine -f
+```
+
+## Getting Help
+
+If issue persists:
+
+<Steps>
+  <Step title="Gather Information">
+    ```bash
+    # System info
+    uname -a
+    cat /etc/os-release
+    
+    # Node version
+    fene-geth version
+    
+    # Logs (last 500 lines)
+    sudo journalctl -u fenine -n 500 &gt; fenine.log
+    
+    # Config (remove sensitive data!)
+    cat /var/lib/fenine/config.toml
+    ```
+  </Step>
+
+  <Step title="Check Documentation">
+    - Review this troubleshooting guide
+    - Check [GitHub Issues](https://github.com/fenines-network/fene-geth/issues)
+    - Search Discord #node-operators
+  </Step>
+
+  <Step title="Ask Community">
+    - Discord: [#node-operators](https://discord.gg/fenines)
+    - Include: OS, version, error logs, steps tried
+    - Be specific: "X happens when I do Y"
+  </Step>
+
+  <Step title="Report Bug">
+    If you found a bug:
+    
+    1. Open [GitHub Issue](https://github.com/fenines-network/fene-geth/issues/new)
+    2. Use template
+    3. Include diagnostics
+    4. Steps to reproduce
+  </Step>
+</Steps>
+
+## Prevention
+
+<CardGroup cols={2}>
+  <Card title="Regular Maintenance" icon="calendar">
+    - Update node monthly
+    - Check logs weekly
+    - Monitor disk space
+    - Test backups
+  </Card>
+  
+  <Card title="Monitoring" icon="chart-line" href="/node-operators/monitoring">
+    - Set up alerts
+    - Track metrics
+    - Automated health checks
+  </Card>
+  
+  <Card title="Backups" icon="hard-drive" href="/node-operators/backup-recovery">
+    - Daily config backups
+    - Weekly full backups
+    - Test recovery
+  </Card>
+  
+  <Card title="Documentation" icon="book">
+    - Document changes
+    - Keep runbooks
+    - Record incidents
+  </Card>
+</CardGroup>
+
+<Note>
+**Still stuck?**
+
+Email: operators@fene.network  
+Discord: #node-operators  
+Office Hours: Thursdays 3PM UTC
+
+Include your node version, OS, and error logs for fastest help.
+</Note>

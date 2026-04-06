@@ -1,0 +1,661 @@
+---
+title: 'Backup & Recovery'
+description: 'Protect your node data and recover from failures'
+icon: 'hard-drive'
+---
+
+## Introduction
+
+Proper backup strategies protect against data loss from hardware failures, corruption, or operator errors. This guide covers backup best practices and recovery procedures for Fenine nodes.
+
+<Info>
+**Backup Priority**:
+1. Private keys (if running validator) - **Critical**
+2. Node configuration - **High**
+3. Blockchain data - **Medium** (can re-sync)
+</Info>
+
+## What to Backup
+
+<Tabs>
+  <Tab title="Essential">
+    **Must backup** - Cannot be recovered:
+    
+    ### Private Keys
+    
+    If you're running a validator or managing accounts:
+    
+    ```bash
+    # Keystore location
+    /var/lib/fenine/keystore/
+    
+    # Backup
+    sudo tar -czf /backup/keystore-$(date +%Y%m%d).tar.gz \
+      /var/lib/fenine/keystore/
+    
+    # Store offline securely!
+    ```
+    
+    <Warning>
+    **Never store private keys on the same server!** Use offline storage (encrypted USB, hardware wallet, etc.)
+    </Warning>
+    
+    ### Node Configuration
+    
+    ```bash
+    # Config files
+    /var/lib/fenine/config.toml
+    /var/lib/fenine/genesis.json
+    /etc/systemd/system/fenine.service
+    
+    # Backup
+    sudo tar -czf /backup/config-$(date +%Y%m%d).tar.gz \
+      /var/lib/fenine/config.toml \
+      /var/lib/fenine/genesis.json \
+      /etc/systemd/system/fenine.service
+    ```
+  </Tab>
+
+  <Tab title="Important">
+    **Should backup** - Saves time on recovery:
+    
+    ### Node Identity
+    
+    ```bash
+    # Node key (peer identity)
+    /var/lib/fenine/geth/nodekey
+    
+    # Backup
+    sudo cp /var/lib/fenine/geth/nodekey \
+      /backup/nodekey-$(date +%Y%m%d)
+    ```
+    
+    Backing up nodekey preserves your node's peer identity.
+    
+    ### Static Nodes
+    
+    If you maintain a static node list:
+    
+    ```bash
+    # Static peers
+    /var/lib/fenine/geth/static-nodes.json
+    
+    # Trusted peers
+    /var/lib/fenine/geth/trusted-nodes.json
+    ```
+  </Tab>
+
+  <Tab title="Optional">
+    **Nice to have** - Can be recreated:
+    
+    ### Blockchain Data
+    
+    Full data directory backup:
+    
+    ```bash
+    # Stop node first
+    sudo systemctl stop fenine
+    
+    # Backup (can be 100GB+)
+    sudo tar -czf /backup/fenine-full-$(date +%Y%m%d).tar.gz \
+      /var/lib/fenine
+    
+    # Resume node
+    sudo systemctl start fenine
+    ```
+    
+    <Warning>
+    Large backups (100GB+) take hours and significant disk space. Consider if re-syncing is faster.
+    </Warning>
+    
+    ### Ancient Data (Archive Nodes)
+    
+    For archive nodes with historical data:
+    
+    ```bash
+    /var/lib/fenine/geth/chaindata/ancient/
+    ```
+    
+    This can be terabytes - use incremental backups.
+  </Tab>
+</Tabs>
+
+## Backup Strategies
+
+<AccordionGroup>
+  <Accordion title="1. Manual Backups">
+    Simple script for on-demand backups:
+    
+    Create `/usr/local/bin/backup-fenine.sh`:
+    
+    ```bash
+    #!/bin/bash
+    
+    BACKUP_DIR="/backup/fenine"
+    DATE=$(date +%Y%m%d-%H%M%S)
+    
+    echo "Starting Fenine backup: $DATE"
+    
+    # Create backup directory
+    mkdir -p $BACKUP_DIR
+    
+    # Config backup (small, always do this)
+    tar -czf $BACKUP_DIR/config-$DATE.tar.gz \
+      /var/lib/fenine/config.toml \
+      /var/lib/fenine/genesis.json \
+      /etc/systemd/system/fenine.service
+    
+    echo "Config backed up"
+    
+    # Node key
+    cp /var/lib/fenine/geth/nodekey \
+      $BACKUP_DIR/nodekey-$DATE
+    
+    echo "Node key backed up"
+    
+    # Optional: Full data backup (uncomment if needed)
+    # echo "Stopping node for full backup..."
+    # sudo systemctl stop fenine
+    # tar -czf $BACKUP_DIR/data-$DATE.tar.gz /var/lib/fenine
+    # sudo systemctl start fenine
+    # echo "Full backup complete"
+    
+    # Clean old backups (keep last 30 days)
+    find $BACKUP_DIR -name "*.tar.gz" -mtime +30 -delete
+    
+    echo "Backup complete: $BACKUP_DIR"
+    ```
+    
+    Make executable:
+    
+    ```bash
+    sudo chmod +x /usr/local/bin/backup-fenine.sh
+    ```
+    
+    Run:
+    
+    ```bash
+    sudo /usr/local/bin/backup-fenine.sh
+    ```
+  </Accordion>
+
+  <Accordion title="2. Automated Scheduled Backups">
+    Cron-based automatic backups:
+    
+    ```bash
+    crontab -e
+    ```
+    
+    Add:
+    
+    ```
+    # Backup config daily at 2 AM
+    0 2 * * * /usr/local/bin/backup-fenine.sh
+    
+    # Backup full data weekly (Sunday 3 AM)
+    # 0 3 * * 0 /usr/local/bin/backup-fenine-full.sh
+    ```
+    
+    Email notifications:
+    
+    ```bash
+    # Add to backup script
+    if [ $? -eq 0 ]; then
+      echo "Backup successful" | mail -s "Fenine Backup OK" admin@example.com
+    else
+      echo "Backup failed!" | mail -s "Fenine Backup FAILED" admin@example.com
+    fi
+    ```
+  </Accordion>
+
+  <Accordion title="3. Incremental Backups with rsync">
+    Efficient backups that only copy changes:
+    
+    ```bash
+    #!/bin/bash
+    
+    BACKUP_DIR="/backup/fenine-incremental"
+    CURRENT="$BACKUP_DIR/current"
+    
+    # Create dated snapshot
+    DATE=$(date +%Y%m%d)
+    SNAPSHOT="$BACKUP_DIR/$DATE"
+    
+    # Rsync with hard links (saves space)
+    rsync -a --delete --link-dest="$CURRENT" \
+      /var/lib/fenine/ "$SNAPSHOT/"
+    
+    # Update current symlink
+    rm -f "$CURRENT"
+    ln -s "$SNAPSHOT" "$CURRENT"
+    
+    echo "Incremental backup created: $SNAPSHOT"
+    ```
+    
+    **Benefits**:
+    - First backup: Full copy
+    - Subsequent backups: Only changed files
+    - Saves disk space with hard links
+  </Accordion>
+
+  <Accordion title="4. Remote Backups">
+    Store backups on separate server:
+    
+    ### Using rsync over SSH
+    
+    ```bash
+    # Backup to remote server
+    rsync -avz -e ssh /backup/fenine/ \
+      user@backup-server:/backups/fenine-node1/
+    ```
+    
+    ### Using rclone (cloud storage)
+    
+    Install rclone:
+    
+    ```bash
+    curl https://rclone.org/install.sh | sudo bash
+    
+    # Configure (AWS S3, Google Drive, etc.)
+    rclone config
+    ```
+    
+    Backup to cloud:
+    
+    ```bash
+    # Backup to S3
+    rclone sync /backup/fenine/ s3:my-bucket/fenine-backups/
+    
+    # Backup to Google Drive
+    rclone sync /backup/fenine/ gdrive:fenine-backups/
+    ```
+    
+    Add to cron:
+    
+    ```
+    # Upload backups to S3 daily at 4 AM
+    0 4 * * * rclone sync /backup/fenine/ s3:my-bucket/fenine-backups/
+    ```
+  </Accordion>
+
+  <Accordion title="5. Snapshot-Based Backups (LVM/Btrfs)">
+    Instant backups using filesystem snapshots:
+    
+    ### LVM Snapshots
+    
+    ```bash
+    # Create snapshot (assuming /var/lib/fenine is on LVM)
+    sudo lvcreate -L 20G -s -n fenine-snapshot /dev/vg0/fenine-lv
+    
+    # Mount snapshot
+    sudo mkdir -p /mnt/fenine-snapshot
+    sudo mount /dev/vg0/fenine-snapshot /mnt/fenine-snapshot
+    
+    # Backup from snapshot (node keeps running!)
+    tar -czf /backup/fenine-$(date +%Y%m%d).tar.gz \
+      -C /mnt/fenine-snapshot .
+    
+    # Remove snapshot
+    sudo umount /mnt/fenine-snapshot
+    sudo lvremove -f /dev/vg0/fenine-snapshot
+    ```
+    
+    ### Btrfs Snapshots
+    
+    ```bash
+    # Create snapshot
+    sudo btrfs subvolume snapshot /var/lib/fenine \
+      /var/lib/fenine-snapshot-$(date +%Y%m%d)
+    
+    # Backup snapshot
+    tar -czf /backup/fenine-$(date +%Y%m%d).tar.gz \
+      /var/lib/fenine-snapshot-$(date +%Y%m%d)
+    
+    # Delete old snapshots
+    sudo btrfs subvolume delete /var/lib/fenine-snapshot-YYYYMMDD
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Recovery Procedures
+
+### Scenario 1: Config File Corruption
+
+**Problem**: Node won't start due to bad config.
+
+**Recovery**:
+
+```bash
+# Stop node
+sudo systemctl stop fenine
+
+# Restore config from backup
+sudo tar -xzf /backup/config-YYYYMMDD.tar.gz \
+  -C /
+
+# Verify config
+fene-geth --config /var/lib/fenine/config.toml --help
+
+# Restart
+sudo systemctl start fenine
+sudo journalctl -u fenine -f
+```
+
+### Scenario 2: Database Corruption
+
+**Problem**: Chaindata corrupted, node crashes.
+
+**Symptoms**:
+```
+WARN [MM-DD|HH:MM:SS.mmm] Unclean shutdown detected
+FATAL [MM-DD|HH:MM:SS.mmm] Failed to open database
+```
+
+**Recovery**:
+
+```bash
+# Stop node
+sudo systemctl stop fenine
+
+# Option A: Restore from backup (if recent)
+sudo rm -rf /var/lib/fenine/geth
+sudo tar -xzf /backup/fenine-full-YYYYMMDD.tar.gz \
+  -C /var/lib/fenine
+
+# Option B: Re-sync from genesis (no backup)
+sudo rm -rf /var/lib/fenine/geth
+fene-geth init /var/lib/fenine/genesis.json \
+  --datadir /var/lib/fenine
+
+# Start node
+sudo systemctl start fenine
+```
+
+### Scenario 3: Lost Node Key
+
+**Problem**: Node key deleted/corrupted.
+
+**Recovery**:
+
+```bash
+# Restore from backup
+sudo cp /backup/nodekey-YYYYMMDD \
+  /var/lib/fenine/geth/nodekey
+
+# Set permissions
+sudo chown $USER:$USER /var/lib/fenine/geth/nodekey
+sudo chmod 600 /var/lib/fenine/geth/nodekey
+
+# Restart node
+sudo systemctl restart fenine
+```
+
+If no backup exists:
+```bash
+# Node will generate new key on startup
+# (You'll have a new peer identity)
+sudo systemctl restart fenine
+```
+
+### Scenario 4: Disk Failure
+
+**Problem**: Complete disk failure.
+
+**Recovery Steps**:
+
+<Steps>
+  <Step title="Provision New Disk">
+    - Install new disk
+    - Create filesystem: `sudo mkfs.ext4 /dev/sdb1`
+    - Mount: `sudo mount /dev/sdb1 /var/lib/fenine`
+  </Step>
+
+  <Step title="Restore from Backup">
+    ```bash
+    # If you have full backup
+    sudo tar -xzf /backup/fenine-full-YYYYMMDD.tar.gz \
+      -C /var/lib/fenine
+    
+    # If only config backup, re-sync
+    sudo tar -xzf /backup/config-YYYYMMDD.tar.gz -C /
+    fene-geth init /var/lib/fenine/genesis.json \
+      --datadir /var/lib/fenine
+    ```
+  </Step>
+
+  <Step title="Verify and Start">
+    ```bash
+    sudo chown -R $USER:$USER /var/lib/fenine
+    sudo systemctl start fenine
+    sudo journalctl -u fenine -f
+    ```
+  </Step>
+
+  <Step title="Monitor Sync">
+    ```bash
+    # Check sync progress
+    curl -X POST http://localhost:8545 \
+      -H "Content-Type: application/json" \
+      -d '{
+        "jsonrpc": "2.0",
+        "method": "eth_syncing",
+        "params": [],
+        "id": 1
+      }'
+    ```
+  </Step>
+</Steps>
+
+### Scenario 5: Complete Server Loss
+
+**Problem**: Entire server destroyed.
+
+**Recovery**:
+
+<Steps>
+  <Step title="Provision New Server">
+    - Meet [hardware requirements](/node-operators/hardware-requirements)
+    - Install Ubuntu 22.04 LTS
+    - Update system: `sudo apt update && sudo apt upgrade -y`
+  </Step>
+
+  <Step title="Install Fene-Geth">
+    Follow [installation guide](/node-operators/non-validator-setup):
+    
+    ```bash
+    wget https://github.com/fenines-network/fene-geth/releases/download/v1.x.x/fene-geth-linux-amd64.tar.gz
+    tar -xzf fene-geth-linux-amd64.tar.gz
+    sudo mv fene-geth /usr/local/bin/
+    ```
+  </Step>
+
+  <Step title="Restore Configuration">
+    ```bash
+    # Download backup from remote/cloud
+    rclone copy s3:my-bucket/fenine-backups/config-YYYYMMDD.tar.gz /tmp/
+    
+    # Extract
+    sudo tar -xzf /tmp/config-YYYYMMDD.tar.gz -C /
+    ```
+  </Step>
+
+  <Step title="Restore Data or Re-sync">
+    ```bash
+    # Option A: Restore full backup (faster)
+    rclone copy s3:my-bucket/fenine-backups/data-YYYYMMDD.tar.gz /tmp/
+    sudo tar -xzf /tmp/data-YYYYMMDD.tar.gz -C /var/lib/fenine
+    
+    # Option B: Re-sync from genesis (no full backup)
+    fene-geth init /var/lib/fenine/genesis.json \
+      --datadir /var/lib/fenine
+    ```
+  </Step>
+
+  <Step title="Start Node">
+    ```bash
+    sudo systemctl daemon-reload
+    sudo systemctl enable fenine
+    sudo systemctl start fenine
+    sudo journalctl -u fenine -f
+    ```
+  </Step>
+</Steps>
+
+## Backup Verification
+
+Always verify backups work:
+
+```bash
+#!/bin/bash
+# Test backup restore
+
+BACKUP_FILE="/backup/fenine-full-YYYYMMDD.tar.gz"
+TEST_DIR="/tmp/fenine-backup-test"
+
+# Create test directory
+mkdir -p $TEST_DIR
+
+# Extract backup
+tar -xzf $BACKUP_FILE -C $TEST_DIR
+
+# Verify files exist
+if [ -f "$TEST_DIR/config.toml" ] && [ -d "$TEST_DIR/geth/chaindata" ]; then
+  echo "✓ Backup verification passed"
+  rm -rf $TEST_DIR
+  exit 0
+else
+  echo "✗ Backup verification FAILED"
+  exit 1
+fi
+```
+
+Run monthly:
+
+```
+# Verify backups on 1st of each month
+0 5 1 * * /usr/local/bin/verify-backup.sh
+```
+
+## Disaster Recovery Checklist
+
+<Accordion title="DR Preparedness">
+  Pre-disaster preparations:
+  
+  - [ ] Document recovery procedures
+  - [ ] Test backups monthly
+  - [ ] Store backups off-site (different location/cloud)
+  - [ ] Encrypt sensitive backups
+  - [ ] Maintain hardware inventory
+  - [ ] Keep emergency contact list
+  - [ ] Document network configuration
+  - [ ] Test recovery time (RTO/RPO)
+</Accordion>
+
+<Accordion title="During Disaster">
+  Immediate steps:
+  
+  - [ ] Assess damage scope
+  - [ ] Notify stakeholders
+  - [ ] Retrieve latest backups
+  - [ ] Provision replacement hardware/cloud
+  - [ ] Begin restoration
+  - [ ] Document incident
+</Accordion>
+
+<Accordion title="Post-Recovery">
+  After restoration:
+  
+  - [ ] Verify all services running
+  - [ ] Check data integrity
+  - [ ] Monitor for issues (24h)
+  - [ ] Update backup procedures
+  - [ ] Conduct post-mortem
+  - [ ] Improve DR plan
+</Accordion>
+
+## Backup Best Practices
+
+<CardGroup cols={2}>
+  <Card title="3-2-1 Rule" icon="shield">
+    - **3** copies of data
+    - **2** different media types
+    - **1** off-site backup
+  </Card>
+  
+  <Card title="Test Regularly" icon="vial">
+    - Verify backups monthly
+    - Practice recovery procedures
+    - Measure restore time
+  </Card>
+  
+  <Card title="Encrypt Backups" icon="lock">
+    - Encrypt off-site backups
+    - Use strong passwords
+    - Secure key storage
+  </Card>
+  
+  <Card title="Automate Everything" icon="robot">
+    - Scheduled backups
+    - Automatic verification
+    - Alert on failures
+  </Card>
+</CardGroup>
+
+## Backup Storage Options
+
+| Solution | Cost | Retention | Best For |
+|----------|------|-----------|----------|
+| **Local Disk** | $50-200 | Short-term | Quick recovery |
+| **NAS** | $300-1000 | Medium-term | Office/datacenter |
+| **AWS S3** | $0.023/GB/mo | Long-term | Cloud backup |
+| **Backblaze B2** | $0.005/GB/mo | Long-term | Budget cloud |
+| **Wasabi** | $0.0059/GB/mo | Long-term | No egress fees |
+| **Glacier** | $0.004/GB/mo | Archive | Rarely accessed |
+
+## Example Backup Schedule
+
+```
+Daily:
+├─ 02:00 - Config backup (local)
+└─ 04:00 - Upload to cloud (S3)
+
+Weekly:
+├─ Sunday 03:00 - Full data backup (local)
+└─ Sunday 05:00 - Upload to cloud
+
+Monthly:
+├─ 1st @ 06:00 - Verify backups
+└─ 1st @ 07:00 - Clean old backups (>90 days)
+
+Quarterly:
+└─ Test full disaster recovery
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Monitoring" icon="chart-line" href="/node-operators/monitoring">
+    Monitor node health
+  </Card>
+  
+  <Card title="Troubleshooting" icon="wrench" href="/node-operators/troubleshooting">
+    Fix common issues
+  </Card>
+  
+  <Card title="Upgrade Guide" icon="arrow-up" href="/node-operators/upgrade">
+    Keep node updated
+  </Card>
+  
+  <Card title="Hardware Requirements" icon="microchip" href="/node-operators/hardware-requirements">
+    Storage planning
+  </Card>
+</CardGroup>
+
+<Note>
+**Recovery Time Objective (RTO)**:
+- Config restore: &lt;5 minutes
+- Re-sync from scratch: 3-12 hours
+- Full data restore: 30 minutes - 2 hours (depends on backup size)
+
+Plan your backup strategy based on acceptable downtime.
+</Note>

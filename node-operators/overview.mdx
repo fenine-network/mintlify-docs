@@ -1,12 +1,12 @@
 ---
 title: 'Node Operators Overview'
-description: 'Run and operate Fenine Network nodes'
+description: 'Run and operate Fenine Network infrastructure'
 icon: 'server'
 ---
 
 ## Introduction
 
-Node operators are the backbone of Fenine Network, running the infrastructure that validates transactions, produces blocks, and maintains network security. This section provides comprehensive guides for setting up and operating Fenine nodes.
+Fenine Network provides infrastructure options for organizations and developers who want to run their own nodes. Unlike traditional blockchain networks, Fenine operates with a **contract-layer validator system**, meaning validators are managed through smart contracts rather than requiring node operators to run validator software.
 
 <Info>
 **Network Info**:
@@ -18,430 +18,159 @@ Node operators are the backbone of Fenine Network, running the infrastructure th
 
 ## Node Types
 
-<CardGroup cols={2}>
-  <Card title="Validator Node" icon="shield-halved">
-    **Requirements**:
-    - Minimum stake: 10,000 FEN
-    - Dedicated server (8 CPU, 32GB RAM, 1TB SSD)
-    - Static IP address
-    - 99%+ uptime
-    
-    **Responsibilities**:
-    - Block production
-    - Transaction validation
-    - System contract execution
-    - Earn rewards + commissions
+Fenine offers three types of node infrastructure:
+
+<CardGroup cols={3}>
+  <Card title="Non-Validator Nodes" icon="database">
+    Monitor network status and serve RPC requests
   </Card>
   
-  <Card title="Full Node" icon="database">
-    **Requirements**:
-    - 4 CPU, 16GB RAM, 500GB SSD
-    - Good internet connection
-    - No staking required
-    
-    **Purpose**:
-    - RPC endpoint for dApps
-    - Network relay
-    - Blockchain explorer backend
-    - Development & testing
+  <Card title="RPC Providers" icon="cloud">
+    Professionally hosted endpoints with enterprise features
   </Card>
   
-  <Card title="Archive Node" icon="hard-drive">
-    **Requirements**:
-    - 8 CPU, 64GB RAM, 4TB+ SSD
-    - High bandwidth
-    - Extended storage
-    
-    **Purpose**:
-    - Historical state queries
-    - Blockchain analytics
-    - Subgraph indexing
-    - Auditing & research
-  </Card>
-  
-  <Card title="Light Client" icon="mobile">
-    **Requirements**:
-    - Minimal resources
-    - Mobile/browser compatible
-    
-    **Purpose**:
-    - Wallet integration
-    - Mobile dApps
-    - Resource-constrained devices
-    - Quick sync
+  <Card title="Private Nodes" icon="building">
+    Closed enterprise nodes for private application integration
   </Card>
 </CardGroup>
 
-## Quick Start
+### 1. Non-Validator Nodes
 
-<Steps>
-  <Step title="System Requirements">
-    Check your server meets the minimum requirements:
-    
-    **Validator Node**:
-    - CPU: 8 cores (3.0 GHz+)
-    - RAM: 32 GB
-    - Storage: 1 TB NVMe SSD
-    - Network: 100 Mbps+
-    - OS: Ubuntu 22.04 LTS
-  </Step>
+**Purpose**: Infrastructure for monitoring network status and serving RPC requests to applications.
 
-  <Step title="Install Dependencies">
-    ```bash
-    sudo apt update && sudo apt upgrade -y
-    sudo apt install -y build-essential git curl wget
-    ```
-  </Step>
+**Use Cases**:
+- dApp backend infrastructure
+- Development and testing environments
+- Network monitoring and analytics
+- Block explorer backends
+- Independent data verification
 
-  <Step title="Download Fene-Geth">
-    ```bash
-    # Download latest release
-    wget https://github.com/fenines-network/fene-geth/releases/latest/download/fene-geth-linux-amd64.tar.gz
-    
-    # Extract
-    tar -xzf fene-geth-linux-amd64.tar.gz
-    
-    # Move to PATH
-    sudo mv fene-geth /usr/local/bin/
-    
-    # Verify installation
-    fene-geth version
-    ```
-  </Step>
-
-  <Step title="Initialize Node">
-    ```bash
-    # Create data directory
-    mkdir -p ~/fenine-data
-    
-    # Download genesis file
-    wget https://raw.githubusercontent.com/fenines-network/genesis/main/mainnet.json -O ~/fenine-data/genesis.json
-    
-    # Initialize node
-    fene-geth init ~/fenine-data/genesis.json --datadir ~/fenine-data
-    ```
-  </Step>
-
-  <Step title="Start Node">
-    ```bash
-    fene-geth \
-      --datadir ~/fenine-data \
-      --networkid 5881 \
-      --http \
-      --http.addr "0.0.0.0" \
-      --http.port 8545 \
-      --http.api "eth,net,web3,fenine" \
-      --ws \
-      --ws.addr "0.0.0.0" \
-      --ws.port 8546 \
-      --ws.api "eth,net,web3,fenine" \
-      --syncmode "full" \
-      --gcmode "archive" \
-      --cache 4096
-    ```
-  </Step>
-</Steps>
-
-## Validator Setup
-
-To become a validator, you need to stake FEN tokens and register on-chain.
-
-### Prerequisites
+**Key Features**:
+- Full blockchain synchronization
+- RPC endpoint for Web3 applications
+- WebSocket support for real-time events
+- Archive mode for historical queries
+- No staking requirement
 
 <Check>
-✅ Node fully synced  
-✅ 10,000+ FEN tokens  
-✅ Validator EOA with private key  
-✅ BLS keypair (optional, for future use)
+✅ **Perfect for**: Developers, dApps, explorers, analytics platforms
 </Check>
 
-### Registration Process
+### 2. RPC Providers
 
-<Tabs>
-  <Tab title="1. Create Account">
-    Generate a dedicated validator account:
-    
-    ```bash
-    # Generate new account
-    fene-geth account new --datadir ~/fenine-data
-    
-    # Output:
-    # Public address of the key:   0xYOUR_VALIDATOR_ADDRESS
-    # Path of the secret key file: ~/fenine-data/keystore/UTC--...
-    ```
-    
-    **Important**: Backup your keystore file and password securely!
-  </Tab>
+**Purpose**: Professionally hosted RPC endpoints with enterprise-grade features.
 
-  <Tab title="2. Fund Account">
-    Send 10,000+ FEN to your validator address:
-    
-    ```javascript
-    // Using ethers.js
-    const tx = await wallet.sendTransaction({
-      to: "0xYOUR_VALIDATOR_ADDRESS",
-      value: ethers.parseEther("10000")
-    });
-    await tx.wait();
-    ```
-  </Tab>
+**Use Cases**:
+- Production dApp infrastructure
+- High-availability applications
+- Multi-region deployments
+- Load-balanced services
+- SLA requirements
 
-  <Tab title="3. Register Validator">
-    Call `createValidator()` on FenineSystem contract:
-    
-    ```javascript
-    const fenineSystem = new ethers.Contract(
-      "0x0000000000000000000000000000000000001000",
-      FENINE_SYSTEM_ABI,
-      signer
-    );
-    
-    // Create validator with 5% commission
-    const tx = await fenineSystem.createValidator(
-      500, // 5% = 500 basis points
-      "0x" // BLS pubkey (optional, use 0x for now)
-    );
-    await tx.wait();
-    ```
-  </Tab>
+**Key Features**:
+- 99.9% uptime SLA
+- Global CDN distribution
+- DDoS protection
+- Rate limiting & analytics
+- 24/7 technical support
+- Custom endpoints
 
-  <Tab title="4. Stake Tokens">
-    Stake your 10,000 FEN:
-    
-    ```javascript
-    const tx = await fenineSystem.stakeValidator({
-      value: ethers.parseEther("10000")
-    });
-    await tx.wait();
-    
-    console.log("Validator staked! Activation at next epoch.");
-    ```
-  </Tab>
+**Available Providers**:
+- **Fenine Official RPC**: `https://rpc.fene.app`
+- **Enterprise Plans**: Contact `enterprise@fene.network`
 
-  <Tab title="5. Configure Node">
-    Update node config to sign blocks:
-    
-    ```bash
-    fene-geth \
-      --datadir ~/fenine-data \
-      --networkid 5881 \
-      --unlock "0xYOUR_VALIDATOR_ADDRESS" \
-      --password ~/validator-password.txt \
-      --mine \
-      --miner.etherbase "0xYOUR_VALIDATOR_ADDRESS" \
-      --http \
-      --http.api "eth,net,web3,fenine,personal" \
-      --allow-insecure-unlock
-    ```
-    
-    <Warning>
-    Use `--allow-insecure-unlock` only on trusted networks. For production, use Clef or hardware wallets.
-    </Warning>
-  </Tab>
-</Tabs>
+<Check>
+✅ **Perfect for**: Production apps, enterprises, high-traffic dApps
+</Check>
 
-## Monitoring & Maintenance
+### 3. Private Nodes
 
-### Health Checks
+**Purpose**: Closed enterprise infrastructure for private application integration on Fenine Network.
 
-Monitor your node's status:
+**Use Cases**:
+- Enterprise blockchain integration
+- Regulated industry compliance
+- Private transaction relay
+- Internal monitoring systems
+- Custom business logic
 
-```bash
-# Check sync status
-curl -X POST http://localhost:8545 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "method": "eth_syncing",
-    "params": [],
-    "id": 1
-  }'
+**Key Features**:
+- Dedicated infrastructure
+- Private RPC endpoints
+- Custom firewall rules
+- VPN integration
+- Compliance support
+- White-glove onboarding
 
-# Check validator status
-curl -X POST http://localhost:8545 \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "method": "eth_call",
-    "params": [{
-      "to": "0x0000000000000000000000000000000000001000",
-      "data": "0x..."
-    }, "latest"],
-    "id": 1
-  }'
-```
+**Requirements**:
+- Enterprise agreement
+- Minimum infrastructure commitment
+- Security audit compliance
+- Technical operations team
 
-### Performance Metrics
+<Check>
+✅ **Perfect for**: Financial institutions, regulated businesses, large enterprises
+</Check>
 
-Key metrics to track:
+## Validator System
 
-| Metric | Target | Command |
-|--------|--------|---------|
-| Block height | Latest | `eth_blockNumber` |
-| Peer count | 25+ | `net_peerCount` |
-| Gas price | ~1 gwei | `eth_gasPrice` |
-| Missed blocks | &lt;1% | Monitor logs |
-| Memory usage | &lt;80% | `free -m` |
-| Disk usage | &lt;70% | `df -h` |
+<Warning>
+**Important**: Fenine uses **contract-layer validators**, not node-layer validators.
 
-### Upgrade Procedure
+Validators are managed entirely through the FenineSystem smart contract. To become a validator:
+1. Stake 10,000 FEN tokens via smart contract
+2. Register validator parameters on-chain
+3. The protocol automatically includes you in block production
 
-<Steps>
-  <Step title="Backup Data">
-    ```bash
-    # Stop node
-    pkill fene-geth
-    
-    # Backup chaindata
-    tar -czf fenine-backup-$(date +%Y%m%d).tar.gz ~/fenine-data
-    ```
-  </Step>
+**You do NOT need to run special validator node software.** Block signing happens through the consensus layer independently of node operation.
+</Warning>
 
-  <Step title="Download New Version">
-    ```bash
-    wget https://github.com/fenines-network/fene-geth/releases/download/v1.2.0/fene-geth-linux-amd64.tar.gz
-    tar -xzf fene-geth-linux-amd64.tar.gz
-    sudo mv fene-geth /usr/local/bin/
-    ```
-  </Step>
+For validator information, see:
+- [FPoS Protocol Documentation](/architecture/fpos)
+- [Validator Staking Guide](/guides/staking)
+- [FenineSystem Contract Reference](/api-reference/contracts/fenine-system)
 
-  <Step title="Restart Node">
-    ```bash
-    fene-geth --datadir ~/fenine-data --config ~/config.toml
-    ```
-  </Step>
+## Getting Started
 
-  <Step title="Verify">
-    Check logs for successful startup and block production.
-  </Step>
-</Steps>
-
-## Security Best Practices
-
-<AccordionGroup>
-  <Accordion title="Key Management">
-    - Use hardware wallets (Ledger/Trezor) for validator keys
-    - Never share private keys or keystore files
-    - Backup keystores in multiple secure locations
-    - Use strong passwords (20+ characters)
-    - Consider using Clef for key management
-  </Accordion>
-
-  <Accordion title="Network Security">
-    - Configure firewall (UFW/iptables)
-    - Only expose necessary ports (8545, 8546, 30303)
-    - Use VPN for remote access
-    - Enable fail2ban for SSH protection
-    - Keep OS and software updated
-  </Accordion>
-
-  <Accordion title="Server Hardening">
-    ```bash
-    # Firewall rules
-    sudo ufw default deny incoming
-    sudo ufw default allow outgoing
-    sudo ufw allow 22/tcp   # SSH
-    sudo ufw allow 30303    # P2P
-    sudo ufw allow 8545/tcp # HTTP RPC (optional)
-    sudo ufw enable
-    
-    # Disable root login
-    sudo sed -i 's/PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config
-    sudo systemctl restart sshd
-    ```
-  </Accordion>
-
-  <Accordion title="Monitoring & Alerts">
-    Set up alerts for:
-    - Node down (&gt;5 minutes)
-    - Missed blocks (&gt;3 consecutive)
-    - Low disk space (&lt;20%)
-    - High CPU/memory usage (&gt;90%)
-    - Network connectivity issues
-    
-    Tools:
-    - Prometheus + Grafana
-    - Alertmanager
-    - PagerDuty / OpsGenie
-  </Accordion>
-</AccordionGroup>
-
-## Troubleshooting
-
-<AccordionGroup>
-  <Accordion title="Node Not Syncing">
-    **Symptoms**: Block height not increasing
-    
-    **Solutions**:
-    1. Check peer count: `net_peerCount`
-    2. Add bootnodes manually
-    3. Verify network connectivity
-    4. Check disk space
-    5. Restart node with `--syncmode "full"`
-  </Accordion>
-
-  <Accordion title="Not Producing Blocks">
-    **Symptoms**: Validator active but no blocks signed
-    
-    **Solutions**:
-    1. Verify account unlocked: Check logs
-    2. Check validator status: `getValidatorInfo()`
-    3. Ensure sufficient stake (10,000 FEN)
-    4. Wait for epoch boundary (activation delay)
-    5. Check system time sync (NTP)
-  </Accordion>
-
-  <Accordion title="High Memory Usage">
-    **Symptoms**: OOM errors, slow performance
-    
-    **Solutions**:
-    1. Reduce cache size: `--cache 2048`
-    2. Enable garbage collection: `--gcmode "full"`
-    3. Upgrade server RAM
-    4. Prune old data (if not archive node)
-  </Accordion>
-
-  <Accordion title="Database Corruption">
-    **Symptoms**: "Database corrupted" errors
-    
-    **Solutions**:
-    1. Stop node
-    2. Restore from backup
-    3. If no backup, resync from genesis:
-    ```bash
-    rm -rf ~/fenine-data/geth/chaindata
-    fene-geth init ~/fenine-data/genesis.json --datadir ~/fenine-data
-    fene-geth --datadir ~/fenine-data --config ~/config.toml
-    ```
-  </Accordion>
-</AccordionGroup>
-
-## Resources
+Choose your path based on your needs:
 
 <CardGroup cols={2}>
-  <Card title="GitHub Repository" icon="github" href="https://github.com/fenines-network/fene-geth">
-    Source code and releases
+  <Card title="Non-Validator Node Setup" icon="gear" href="/node-operators/non-validator-setup">
+    Set up your own RPC node
   </Card>
   
+  <Card title="Hardware Requirements" icon="microchip" href="/node-operators/hardware-requirements">
+    System specifications and recommendations
+  </Card>
+  
+  <Card title="RPC Provider Options" icon="cloud" href="/node-operators/rpc-providers">
+    Choose a hosted RPC service
+  </Card>
+  
+  <Card title="Enterprise Solutions" icon="building" href="mailto:enterprise@fene.network">
+    Contact us for private nodes
+  </Card>
+</CardGroup>
+
+## Support & Resources
+
+<CardGroup cols={3}>
   <Card title="Discord Support" icon="discord" href="https://discord.gg/fenines">
     #node-operators channel
   </Card>
   
-  <Card title="Validator Dashboard" icon="chart-line" href="https://stake.fene.app">
-    Monitor your validator
+  <Card title="GitHub" icon="github" href="https://github.com/fenines-network/fene-geth">
+    Source code and releases
   </Card>
   
   <Card title="Network Stats" icon="gauge" href="https://stats.fene.app">
-    Real-time network metrics
+    Real-time metrics
   </Card>
 </CardGroup>
-
-## Getting Help
 
 <Note>
 **Node Operators Support**:
 - Discord: #node-operators
-- Telegram: @FenineValidators
-- Email: validators@fene.network
+- Email: operators@fene.network
 - Office Hours: Thursdays 3PM UTC
 </Note>

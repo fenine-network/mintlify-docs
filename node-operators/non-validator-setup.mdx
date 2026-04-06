@@ -1,0 +1,364 @@
+---
+title: 'Non-Validator Node Setup'
+description: 'Install and configure a Fenine full node'
+icon: 'gear'
+---
+
+## Introduction
+
+This guide walks you through setting up a non-validator full node for Fenine Network. A full node maintains a complete copy of the blockchain and can serve RPC requests for dApps.
+
+<Info>
+Setup time: ~2-3 hours (including sync time)
+</Info>
+
+## Prerequisites
+
+Before you begin, ensure you have:
+
+<Check>
+✅ Server meeting [hardware requirements](/node-operators/hardware-requirements)  
+✅ Ubuntu 22.04 LTS (or compatible Linux distribution)  
+✅ Root or sudo access  
+✅ Stable internet connection (100 Mbps+)  
+✅ Static IP address (recommended)
+</Check>
+
+## Installation Steps
+
+<Steps>
+  <Step title="Update System">
+    ```bash
+    sudo apt update && sudo apt upgrade -y
+    sudo apt install -y build-essential git curl wget
+    ```
+  </Step>
+
+  <Step title="Download Fene-Geth">
+    Download the latest Fenine node binary:
+    
+    ```bash
+    # Create directory
+    mkdir -p ~/fenine
+    cd ~/fenine
+    
+    # Download latest release
+    LATEST_VERSION=$(curl -s https://api.github.com/repos/fenines-network/fene-geth/releases/latest | grep tag_name | cut -d '"' -f 4)
+    wget "https://github.com/fenines-network/fene-geth/releases/download/${LATEST_VERSION}/fene-geth-linux-amd64.tar.gz"
+    
+    # Extract
+    tar -xzf fene-geth-linux-amd64.tar.gz
+    
+    # Move to PATH
+    sudo mv fene-geth /usr/local/bin/
+    
+    # Verify installation
+    fene-geth version
+    ```
+    
+    Expected output:
+    ```
+    Fene-Geth
+    Version: 1.x.x
+    Architecture: amd64
+    Protocol Versions: [65]
+    Network Id: 5881
+    ```
+  </Step>
+
+  <Step title="Create Data Directory">
+    ```bash
+    # Create data directory
+    sudo mkdir -p /var/lib/fenine
+    
+    # Set permissions
+    sudo chown -R $USER:$USER /var/lib/fenine
+    ```
+  </Step>
+
+  <Step title="Download Genesis File">
+    ```bash
+    # Download mainnet genesis
+    wget https://raw.githubusercontent.com/fenines-network/genesis/main/mainnet.json \
+      -O /var/lib/fenine/genesis.json
+    
+    # Verify checksum
+    sha256sum /var/lib/fenine/genesis.json
+    # Should match: [GENESIS_CHECKSUM_HERE]
+    ```
+  </Step>
+
+  <Step title="Initialize Node">
+    ```bash
+    # Initialize with genesis
+    fene-geth init /var/lib/fenine/genesis.json \
+      --datadir /var/lib/fenine
+    
+    # Expected output:
+    # INFO [MM-DD|HH:MM:SS.mmm] Successfully wrote genesis state
+    ```
+  </Step>
+
+  <Step title="Configure Node">
+    Create configuration file:
+    
+    ```bash
+    nano /var/lib/fenine/config.toml
+    ```
+    
+    Add the following configuration:
+    
+    ```toml
+    [Eth]
+    NetworkId = 5881
+    SyncMode = "full"
+    NoPruning = false
+    
+    [Node]
+    DataDir = "/var/lib/fenine"
+    HTTPHost = "0.0.0.0"
+    HTTPPort = 8545
+    HTTPVirtualHosts = ["*"]
+    HTTPModules = ["eth", "net", "web3", "fenine"]
+    
+    WSHost = "0.0.0.0"
+    WSPort = 8546
+    WSOrigins = ["*"]
+    WSModules = ["eth", "net", "web3", "fenine"]
+    
+    [Node.P2P]
+    MaxPeers = 50
+    NoDiscovery = false
+    ListenAddr = ":30303"
+    
+    BootstrapNodes = [
+      "enode://[BOOTNODE_1]@bootnode1.fene.app:30303",
+      "enode://[BOOTNODE_2]@bootnode2.fene.app:30303",
+      "enode://[BOOTNODE_3]@bootnode3.fene.app:30303"
+    ]
+    ```
+    
+    <Note>
+    Contact support@fene.network for official bootnode addresses.
+    </Note>
+  </Step>
+
+  <Step title="Create Systemd Service">
+    Create a systemd service for auto-start:
+    
+    ```bash
+    sudo nano /etc/systemd/system/fenine.service
+    ```
+    
+    Add:
+    
+    ```ini
+    [Unit]
+    Description=Fenine Full Node
+    After=network.target
+    
+    [Service]
+    Type=simple
+    User=$USER
+    ExecStart=/usr/local/bin/fene-geth \
+      --config /var/lib/fenine/config.toml \
+      --cache 4096 \
+      --maxpeers 50
+    Restart=on-failure
+    RestartSec=10
+    LimitNOFILE=65535
+    
+    [Install]
+    WantedBy=multi-user.target
+    ```
+    
+    Enable and start:
+    
+    ```bash
+    sudo systemctl daemon-reload
+    sudo systemctl enable fenine
+    sudo systemctl start fenine
+    ```
+  </Step>
+
+  <Step title="Verify Node is Running">
+    Check node status:
+    
+    ```bash
+    # Check service status
+    sudo systemctl status fenine
+    
+    # View logs
+    sudo journalctl -u fenine -f
+    
+    # Check sync status
+    curl -X POST http://localhost:8545 \
+      -H "Content-Type: application/json" \
+      -d '{
+        "jsonrpc": "2.0",
+        "method": "eth_syncing",
+        "params": [],
+        "id": 1
+      }'
+    ```
+    
+    If syncing, you'll see:
+    ```json
+    {
+      "result": {
+        "currentBlock": "0x1234",
+        "highestBlock": "0x5678",
+        "startingBlock": "0x0"
+      }
+    }
+    ```
+    
+    If synced:
+    ```json
+    {
+      "result": false
+    }
+    ```
+  </Step>
+</Steps>
+
+## Post-Installation
+
+### Configure Firewall
+
+```bash
+# Allow SSH
+sudo ufw allow 22/tcp
+
+# Allow P2P
+sudo ufw allow 30303/tcp
+sudo ufw allow 30303/udp
+
+# Allow RPC (optional - only if serving public traffic)
+# sudo ufw allow 8545/tcp
+# sudo ufw allow 8546/tcp
+
+# Enable firewall
+sudo ufw enable
+```
+
+<Warning>
+**Security**: Only expose RPC ports (8545, 8546) if you need to serve public traffic. For production, use a reverse proxy (nginx) with authentication.
+</Warning>
+
+### Test RPC Endpoint
+
+```bash
+# Get current block number
+curl -X POST http://localhost:8545 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "eth_blockNumber",
+    "params": [],
+    "id": 1
+  }'
+
+# Get network ID
+curl -X POST http://localhost:8545 \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "net_version",
+    "params": [],
+    "id": 1
+  }'
+```
+
+### Connect from Web3
+
+Test with ethers.js:
+
+```javascript
+import { ethers } from "ethers";
+
+const provider = new ethers.JsonRpcProvider("http://YOUR_NODE_IP:8545");
+
+// Test connection
+const blockNumber = await provider.getBlockNumber();
+console.log("Current block:", blockNumber);
+
+const network = await provider.getNetwork();
+console.log("Chain ID:", network.chainId); // Should be 5881
+```
+
+## Archive Mode (Optional)
+
+For blockchain explorers or analytics, enable archive mode:
+
+<Warning>
+Archive mode requires significantly more disk space (4TB+ recommended).
+</Warning>
+
+Update config.toml:
+
+```toml
+[Eth]
+SyncMode = "full"
+NoPruning = true  # Keep all historical states
+```
+
+Restart node:
+
+```bash
+sudo systemctl restart fenine
+```
+
+## Useful Commands
+
+### Node Management
+
+```bash
+# Start node
+sudo systemctl start fenine
+
+# Stop node
+sudo systemctl stop fenine
+
+# Restart node
+sudo systemctl restart fenine
+
+# View logs (real-time)
+sudo journalctl -u fenine -f
+
+# View logs (last 100 lines)
+sudo journalctl -u fenine -n 100
+```
+
+### Blockchain Operations
+
+```bash
+# Attach to console
+fene-geth attach /var/lib/fenine/geth.ipc
+
+# Inside console:
+> eth.blockNumber
+> net.peerCount
+> admin.peers
+> exit
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Monitoring" icon="chart-line" href="/node-operators/monitoring">
+    Set up monitoring and alerts
+  </Card>
+  
+  <Card title="Backup & Recovery" icon="hard-drive" href="/node-operators/backup-recovery">
+    Backup strategies
+  </Card>
+  
+  <Card title="Troubleshooting" icon="wrench" href="/node-operators/troubleshooting">
+    Common issues and solutions
+  </Card>
+  
+  <Card title="Upgrade Guide" icon="arrow-up" href="/node-operators/upgrade">
+    How to upgrade your node
+  </Card>
+</CardGroup>

@@ -66,7 +66,18 @@
           {
             "group": "Getting Started",
             "pages": [
-              "node-operators/overview"
+              "node-operators/overview",
+              "node-operators/non-validator-setup",
+              "node-operators/hardware-requirements"
+            ]
+          },
+          {
+            "group": "Maintenance",
+            "pages": [
+              "node-operators/monitoring",
+              "node-operators/upgrade",
+              "node-operators/backup-recovery",
+              "node-operators/troubleshooting"
             ]
           }
         ]

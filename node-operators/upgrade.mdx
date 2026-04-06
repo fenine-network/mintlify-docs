@@ -1,0 +1,564 @@
+---
+title: 'Upgrade Guide'
+description: 'Safely upgrade your Fenine node to new versions'
+icon: 'arrow-up'
+---
+
+## Introduction
+
+Keep your Fenine node updated to benefit from performance improvements, security patches, and new features. This guide covers safe upgrade procedures.
+
+<Warning>
+Always backup your node before upgrading. See [Backup & Recovery](/node-operators/backup-recovery) guide.
+</Warning>
+
+## Before You Upgrade
+
+### Check Current Version
+
+```bash
+fene-geth version
+```
+
+Output example:
+```
+Fene-Geth
+Version: 1.2.5
+Architecture: amd64
+Protocol Versions: [65]
+Network Id: 5881
+```
+
+### Review Release Notes
+
+Check the [GitHub releases](https://github.com/fenines-network/fene-geth/releases) page for:
+
+- New features
+- Breaking changes
+- Database migrations
+- Configuration updates
+- Known issues
+
+<Info>
+Subscribe to releases on GitHub to get notifications about new versions.
+</Info>
+
+### Determine Upgrade Type
+
+| Upgrade Type | Description | Downtime | Risk |
+|--------------|-------------|----------|------|
+| **Patch** (1.2.x → 1.2.y) | Bug fixes, minor improvements | &lt;5 min | Low |
+| **Minor** (1.x.0 → 1.y.0) | New features, optimizations | 5-15 min | Medium |
+| **Major** (x.0.0 → y.0.0) | Breaking changes, migrations | 15-60 min | High |
+| **Hardfork** | Network consensus change | Must upgrade before block height | Critical |
+
+<Warning>
+**Hardfork upgrades are mandatory** and must be completed before the activation block height. Missing a hardfork will cause your node to reject new blocks.
+</Warning>
+
+## Upgrade Procedures
+
+<Tabs>
+  <Tab title="Standard Upgrade">
+    For patch and minor version upgrades:
+    
+    ### 1. Download New Version
+    
+    ```bash
+    cd /tmp
+    
+    # Get latest version
+    LATEST_VERSION=$(curl -s https://api.github.com/repos/fenines-network/fene-geth/releases/latest | grep tag_name | cut -d '"' -f 4)
+    
+    echo "Upgrading to: $LATEST_VERSION"
+    
+    # Download
+    wget "https://github.com/fenines-network/fene-geth/releases/download/${LATEST_VERSION}/fene-geth-linux-amd64.tar.gz"
+    
+    # Verify checksum
+    wget "https://github.com/fenines-network/fene-geth/releases/download/${LATEST_VERSION}/checksums.txt"
+    sha256sum -c checksums.txt
+    ```
+    
+    ### 2. Backup Current Binary
+    
+    ```bash
+    sudo cp /usr/local/bin/fene-geth /usr/local/bin/fene-geth.backup
+    ```
+    
+    ### 3. Stop Node
+    
+    ```bash
+    sudo systemctl stop fenine
+    
+    # Verify stopped
+    sudo systemctl status fenine
+    ```
+    
+    ### 4. Install New Binary
+    
+    ```bash
+    tar -xzf fene-geth-linux-amd64.tar.gz
+    sudo mv fene-geth /usr/local/bin/
+    sudo chmod +x /usr/local/bin/fene-geth
+    ```
+    
+    ### 5. Verify Installation
+    
+    ```bash
+    fene-geth version
+    ```
+    
+    ### 6. Start Node
+    
+    ```bash
+    sudo systemctl start fenine
+    
+    # Monitor startup
+    sudo journalctl -u fenine -f
+    ```
+    
+    ### 7. Verify Sync
+    
+    ```bash
+    curl -X POST http://localhost:8545 \
+      -H "Content-Type: application/json" \
+      -d '{
+        "jsonrpc": "2.0",
+        "method": "eth_syncing",
+        "params": [],
+        "id": 1
+      }'
+    ```
+    
+    Expected: `{"result": false}` (fully synced)
+  </Tab>
+
+  <Tab title="Major Upgrade">
+    For major version upgrades with potential breaking changes:
+    
+    ### 1. Read Migration Guide
+    
+    Check release notes for:
+    - Database format changes
+    - Configuration file updates
+    - Deprecated flags
+    - New requirements
+    
+    ### 2. Backup Everything
+    
+    ```bash
+    # Stop node
+    sudo systemctl stop fenine
+    
+    # Backup data directory
+    sudo tar -czf /backup/fenine-data-$(date +%Y%m%d).tar.gz \
+      /var/lib/fenine
+    
+    # Backup config
+    sudo cp /var/lib/fenine/config.toml \
+      /backup/config.toml.$(date +%Y%m%d)
+    ```
+    
+    ### 3. Update Configuration
+    
+    Review config changes in release notes:
+    
+    ```bash
+    sudo nano /var/lib/fenine/config.toml
+    ```
+    
+    Example changes for v2.0.0:
+    ```toml
+    # Old format (v1.x)
+    [Eth]
+    SyncMode = "full"
+    
+    # New format (v2.x)
+    [Eth.Sync]
+    Mode = "snap"  # New default
+    PivotBlockNumber = 0
+    ```
+    
+    ### 4. Database Migration (if required)
+    
+    Some upgrades require database migration:
+    
+    ```bash
+    # Run migration tool
+    fene-geth db migrate \
+      --datadir /var/lib/fenine \
+      --target-version 2.0
+    
+    # This may take 30-60 minutes
+    ```
+    
+    ### 5. Test Upgrade
+    
+    ```bash
+    # Start node in foreground to watch for errors
+    fene-geth --config /var/lib/fenine/config.toml
+    
+    # Press Ctrl+C after 2-3 minutes if no errors
+    ```
+    
+    ### 6. Start Service
+    
+    ```bash
+    sudo systemctl start fenine
+    sudo journalctl -u fenine -f
+    ```
+    
+    ### 7. Monitor for Issues
+    
+    Watch logs for 15-30 minutes:
+    - No panic errors
+    - Sync continues normally
+    - Peer connections stable
+    - Memory usage normal
+  </Tab>
+
+  <Tab title="Hardfork Upgrade">
+    **Critical**: Must complete before hardfork activation block.
+    
+    ### Preparation (1 week before)
+    
+    1. **Announcement**: Join Discord/Telegram for hardfork announcements
+    2. **Timeline**: Note activation block height
+    3. **Testing**: Test upgrade on testnet first
+    
+    ### Upgrade Window
+    
+    Complete upgrade **at least 24 hours before** activation:
+    
+    ```bash
+    # Check current block
+    curl -X POST http://localhost:8545 \
+      -H "Content-Type: application/json" \
+      -d '{
+        "jsonrpc": "2.0",
+        "method": "eth_blockNumber",
+        "params": [],
+        "id": 1
+      }'
+    
+    # Compare to activation block in announcement
+    # Example: Hardfork activates at block 5,000,000
+    # Current block: 4,950,000
+    # Remaining: 50,000 blocks ≈ 41 hours
+    ```
+    
+    ### Upgrade Steps
+    
+    ```bash
+    # Download hardfork release
+    HARDFORK_VERSION="v2.0.0-hardfork"
+    wget "https://github.com/fenines-network/fene-geth/releases/download/${HARDFORK_VERSION}/fene-geth-linux-amd64.tar.gz"
+    
+    # Verify checksum (critical for hardforks!)
+    sha256sum fene-geth-linux-amd64.tar.gz
+    # Compare with official announcement
+    
+    # Standard upgrade process
+    sudo systemctl stop fenine
+    tar -xzf fene-geth-linux-amd64.tar.gz
+    sudo mv fene-geth /usr/local/bin/
+    sudo systemctl start fenine
+    
+    # Verify version
+    fene-geth version | grep "Version"
+    # Should show hardfork version
+    ```
+    
+    ### Post-Hardfork Verification
+    
+    ```bash
+    # Monitor after activation block
+    sudo journalctl -u fenine -f
+    
+    # Check for hardfork messages:
+    # "Hardfork activated at block 5000000"
+    # "New consensus rules applied"
+    
+    # Verify still syncing
+    curl -X POST http://localhost:8545 \
+      -H "Content-Type: application/json" \
+      -d '{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}'
+    ```
+    
+    <Warning>
+    If you miss a hardfork, your node will fork from the network. You'll need to re-sync from a checkpoint after the hardfork block.
+    </Warning>
+  </Tab>
+
+  <Tab title="Rollback">
+    If upgrade fails, rollback to previous version:
+    
+    ### 1. Stop Failed Node
+    
+    ```bash
+    sudo systemctl stop fenine
+    ```
+    
+    ### 2. Restore Backup Binary
+    
+    ```bash
+    sudo mv /usr/local/bin/fene-geth.backup \
+      /usr/local/bin/fene-geth
+    ```
+    
+    ### 3. Restore Configuration (if changed)
+    
+    ```bash
+    sudo cp /backup/config.toml.YYYYMMDD \
+      /var/lib/fenine/config.toml
+    ```
+    
+    ### 4. Restore Database (if corrupted)
+    
+    ```bash
+    sudo systemctl stop fenine
+    
+    # Remove corrupted data
+    sudo rm -rf /var/lib/fenine/geth
+    
+    # Restore from backup
+    sudo tar -xzf /backup/fenine-data-YYYYMMDD.tar.gz \
+      -C /
+    ```
+    
+    ### 5. Start Node
+    
+    ```bash
+    sudo systemctl start fenine
+    sudo journalctl -u fenine -f
+    ```
+    
+    ### 6. Report Issue
+    
+    Open GitHub issue with:
+    - Version numbers (old and new)
+    - Error logs
+    - System specs
+    - Upgrade steps taken
+  </Tab>
+</Tabs>
+
+## Zero-Downtime Upgrade (Advanced)
+
+For production RPC services, use multiple nodes:
+
+### Setup
+
+1. **Load Balancer**: nginx or HAProxy distributing traffic
+2. **Node Pool**: 2+ nodes behind load balancer
+
+### Rolling Upgrade
+
+```bash
+# Node 1: Remove from load balancer
+# In nginx config, comment out node1
+
+# Upgrade node1
+ssh node1
+sudo systemctl stop fenine
+# ... upgrade steps ...
+sudo systemctl start fenine
+
+# Verify node1 healthy
+curl http://node1:8545 -X POST \
+  -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+
+# Add node1 back to load balancer
+
+# Wait 5 minutes, then repeat for node2, node3, etc.
+```
+
+## Automated Upgrade Monitoring
+
+Create `/usr/local/bin/check-upgrade.sh`:
+
+```bash
+#!/bin/bash
+
+CURRENT_VERSION=$(fene-geth version | grep Version | awk '{print $2}')
+LATEST_VERSION=$(curl -s https://api.github.com/repos/fenines-network/fene-geth/releases/latest | grep tag_name | cut -d '"' -f 4)
+
+if [ "$CURRENT_VERSION" != "${LATEST_VERSION:1}" ]; then
+  echo "New version available: $LATEST_VERSION (current: $CURRENT_VERSION)"
+  echo "New Fenine version available: $LATEST_VERSION" | \
+    mail -s "Node Upgrade Available" your-email@example.com
+fi
+```
+
+Add to cron:
+
+```bash
+crontab -e
+```
+
+```
+# Check for updates weekly
+0 9 * * 1 /usr/local/bin/check-upgrade.sh
+```
+
+## Upgrade Checklist
+
+<Steps>
+  <Step title="Pre-Upgrade">
+    - [ ] Read release notes
+    - [ ] Backup node data
+    - [ ] Backup configuration files
+    - [ ] Verify disk space (30GB+ free)
+    - [ ] Schedule maintenance window
+    - [ ] Notify users (if public RPC)
+  </Step>
+
+  <Step title="Upgrade">
+    - [ ] Download new binary
+    - [ ] Verify checksum
+    - [ ] Stop node service
+    - [ ] Replace binary
+    - [ ] Update configuration (if needed)
+    - [ ] Start node service
+  </Step>
+
+  <Step title="Post-Upgrade">
+    - [ ] Verify version number
+    - [ ] Check sync status
+    - [ ] Monitor logs for errors
+    - [ ] Verify peer connections
+    - [ ] Test RPC endpoints
+    - [ ] Monitor for 30 minutes
+    - [ ] Document upgrade results
+  </Step>
+
+  <Step title="Cleanup">
+    - [ ] Remove old backups (older than 30 days)
+    - [ ] Clean up /tmp files
+    - [ ] Update monitoring dashboards
+    - [ ] Notify users upgrade complete
+  </Step>
+</Steps>
+
+## Common Upgrade Issues
+
+<AccordionGroup>
+  <Accordion title="Node won't start after upgrade">
+    **Symptoms**: Service fails to start, immediate exit
+    
+    **Causes**:
+    - Incompatible configuration
+    - Missing permissions
+    - Database corruption
+    
+    **Solutions**:
+    ```bash
+    # Check logs
+    sudo journalctl -u fenine -n 100
+    
+    # Test config
+    fene-geth --config /var/lib/fenine/config.toml --help
+    
+    # Verify permissions
+    sudo chown -R $USER:$USER /var/lib/fenine
+    
+    # Reset database (last resort)
+    sudo systemctl stop fenine
+    sudo rm -rf /var/lib/fenine/geth
+    fene-geth init /var/lib/fenine/genesis.json --datadir /var/lib/fenine
+    sudo systemctl start fenine
+    ```
+  </Accordion>
+
+  <Accordion title="Sync stuck after upgrade">
+    **Symptoms**: Block height not increasing
+    
+    **Solutions**:
+    ```bash
+    # Check peers
+    curl -X POST http://localhost:8545 \
+      -d '{"jsonrpc":"2.0","method":"net_peerCount","params":[],"id":1}'
+    
+    # If peer count low, add bootnodes
+    sudo systemctl stop fenine
+    
+    # Add --bootnodes flag to systemd service
+    sudo nano /etc/systemd/system/fenine.service
+    
+    ExecStart=/usr/local/bin/fene-geth \
+      --config /var/lib/fenine/config.toml \
+      --bootnodes "enode://[BOOTNODE]@bootnode1.fene.app:30303"
+    
+    sudo systemctl daemon-reload
+    sudo systemctl start fenine
+    ```
+  </Accordion>
+
+  <Accordion title="High memory usage after upgrade">
+    **Symptoms**: OOM kills, swap usage
+    
+    **Solutions**:
+    ```bash
+    # Reduce cache size
+    sudo systemctl stop fenine
+    
+    # Edit service file
+    sudo nano /etc/systemd/system/fenine.service
+    
+    # Change --cache 4096 to --cache 2048
+    
+    sudo systemctl daemon-reload
+    sudo systemctl start fenine
+    
+    # Monitor memory
+    watch free -h
+    ```
+  </Accordion>
+
+  <Accordion title="Database migration failed">
+    **Symptoms**: Migration script errors
+    
+    **Solutions**:
+    ```bash
+    # Restore from backup
+    sudo systemctl stop fenine
+    sudo rm -rf /var/lib/fenine/geth
+    sudo tar -xzf /backup/fenine-data-YYYYMMDD.tar.gz -C /
+    
+    # Try migration again with more logging
+    fene-geth db migrate \
+      --datadir /var/lib/fenine \
+      --target-version 2.0 \
+      --verbosity 5
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Support Resources
+
+<CardGroup cols={2}>
+  <Card title="Release Notes" icon="file" href="https://github.com/fenines-network/fene-geth/releases">
+    View all version changes
+  </Card>
+  
+  <Card title="Discord #node-operators" icon="discord" href="https://discord.gg/fenines">
+    Get upgrade help
+  </Card>
+  
+  <Card title="Troubleshooting" icon="wrench" href="/node-operators/troubleshooting">
+    Fix common issues
+  </Card>
+  
+  <Card title="Backup Guide" icon="hard-drive" href="/node-operators/backup-recovery">
+    Protect your data
+  </Card>
+</CardGroup>
+
+<Note>
+**Upgrade Strategy**:
+- **Testnet first**: Always test on testnet before mainnet
+- **Off-peak hours**: Upgrade during low traffic
+- **Staged rollout**: For multiple nodes, upgrade one at a time
+- **Monitor closely**: Watch for 30+ minutes post-upgrade
+</Note>

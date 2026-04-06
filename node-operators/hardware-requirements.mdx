@@ -1,0 +1,362 @@
+---
+title: 'Hardware Requirements'
+description: 'System specifications for Fenine nodes'
+icon: 'microchip'
+---
+
+## Overview
+
+Fenine Network has different hardware requirements based on node type and usage. This guide helps you choose the right specifications.
+
+## Non-Validator Full Node
+
+### Minimum Requirements
+
+For basic operation and light RPC usage:
+
+| Component | Specification | Notes |
+|-----------|---------------|-------|
+| **CPU** | 4 cores @ 2.5 GHz | Intel/AMD x86-64 |
+| **RAM** | 16 GB | DDR4 recommended |
+| **Storage** | 500 GB SSD | NVMe preferred |
+| **Network** | 25 Mbps | Stable connection |
+| **OS** | Ubuntu 22.04 LTS | Or compatible Linux |
+
+<Warning>
+Minimum specs may struggle during high network activity. Recommended specs provide better performance.
+</Warning>
+
+### Recommended Requirements
+
+For production RPC serving and better performance:
+
+| Component | Specification | Notes |
+|-----------|---------------|-------|
+| **CPU** | 8 cores @ 3.0 GHz+ | Ryzen 5/Intel i7 or better |
+| **RAM** | 32 GB | DDR4-3200 or faster |
+| **Storage** | 1 TB NVMe SSD | Samsung 980 PRO or equivalent |
+| **Network** | 100 Mbps+ | Gigabit preferred |
+| **OS** | Ubuntu 22.04 LTS | Latest kernel |
+
+<Check>
+✅ **Best for**: Production dApps, public RPC, development teams
+</Check>
+
+### Storage Growth
+
+Blockchain size grows over time:
+
+| Time Period | Estimated Size | Notes |
+|-------------|----------------|-------|
+| Genesis | ~10 MB | Initial state |
+| 6 months | ~50 GB | Pruned mode |
+| 1 year | ~100 GB | Pruned mode |
+| 2 years | ~200 GB | Pruned mode |
+
+**Growth Rate**: ~8-10 GB/month (pruned mode)
+
+<Info>
+**Pruning** removes old state data while keeping recent states. Archive nodes keep everything and grow faster.
+</Info>
+
+## Archive Node
+
+### Minimum Requirements
+
+Archive nodes store complete historical state:
+
+| Component | Specification | Notes |
+|-----------|---------------|-------|
+| **CPU** | 8 cores @ 3.0 GHz | High clock speed important |
+| **RAM** | 64 GB | More is better |
+| **Storage** | 4 TB NVMe SSD | Fast I/O critical |
+| **Network** | 100 Mbps+ | Stable, low latency |
+| **OS** | Ubuntu 22.04 LTS | Server edition |
+
+### Recommended Requirements
+
+For optimal archive node performance:
+
+| Component | Specification | Notes |
+|-----------|---------------|-------|
+| **CPU** | 16 cores @ 3.5 GHz+ | AMD EPYC/Intel Xeon |
+| **RAM** | 128 GB | ECC memory |
+| **Storage** | 8 TB+ NVMe RAID | Enterprise SSD |
+| **Network** | 1 Gbps | Dedicated line |
+| **OS** | Ubuntu 22.04 LTS | Server/datacenter |
+
+### Storage Growth (Archive)
+
+| Time Period | Estimated Size | Notes |
+|-------------|----------------|-------|
+| 6 months | ~500 GB | All historical states |
+| 1 year | ~1.5 TB | Growing faster |
+| 2 years | ~4 TB | Exponential growth |
+
+**Growth Rate**: ~200-300 GB/month (archive mode)
+
+<Warning>
+Archive nodes require significant storage and grow much faster than pruned nodes. Plan for expansion.
+</Warning>
+
+## RPC Provider Node
+
+### High-Traffic Configuration
+
+For serving thousands of requests per second:
+
+| Component | Specification | Notes |
+|-----------|---------------|-------|
+| **CPU** | 32+ cores | AMD EPYC 7543 or better |
+| **RAM** | 256 GB | ECC, redundant |
+| **Storage** | 8 TB NVMe RAID 10 | Enterprise grade |
+| **Network** | 10 Gbps | Redundant connections |
+| **Backup** | Separate backup server | Hot failover |
+
+**Additional Requirements**:
+- Load balancer (nginx/HAProxy)
+- DDoS protection
+- Monitoring stack (Prometheus/Grafana)
+- 24/7 operations team
+
+## Cloud Provider Options
+
+### AWS EC2
+
+<Tabs>
+  <Tab title="Full Node (Minimum)">
+    **Instance Type**: `t3.xlarge`
+    
+    - 4 vCPUs
+    - 16 GB RAM
+    - 500 GB gp3 EBS volume
+    
+    **Estimated Cost**: ~$150/month
+  </Tab>
+
+  <Tab title="Full Node (Recommended)">
+    **Instance Type**: `c6i.2xlarge`
+    
+    - 8 vCPUs (3.5 GHz)
+    - 16 GB RAM
+    - 1 TB io2 EBS volume (16,000 IOPS)
+    
+    **Estimated Cost**: ~$350/month
+  </Tab>
+
+  <Tab title="Archive Node">
+    **Instance Type**: `r6i.4xlarge`
+    
+    - 16 vCPUs
+    - 128 GB RAM
+    - 8 TB io2 EBS volume (64,000 IOPS)
+    
+    **Estimated Cost**: ~$1,500/month
+  </Tab>
+</Tabs>
+
+### Google Cloud
+
+<Tabs>
+  <Tab title="Full Node">
+    **Machine Type**: `n2-standard-8`
+    
+    - 8 vCPUs
+    - 32 GB RAM
+    - 1 TB SSD persistent disk
+    
+    **Estimated Cost**: ~$300/month
+  </Tab>
+
+  <Tab title="Archive Node">
+    **Machine Type**: `n2-highmem-16`
+    
+    - 16 vCPUs
+    - 128 GB RAM
+    - 8 TB SSD persistent disk
+    
+    **Estimated Cost**: ~$1,400/month
+  </Tab>
+</Tabs>
+
+### Dedicated Servers
+
+Budget-friendly alternatives:
+
+| Provider | Specs | Price | Notes |
+|----------|-------|-------|-------|
+| **Hetzner** | AX102<br/>AMD Ryzen 9 5950X<br/>128 GB RAM<br/>2x 2TB NVMe | €179/month | Great value |
+| **OVH** | Rise-3<br/>AMD EPYC 7453<br/>128 GB RAM<br/>2x 1.92TB SSD | $250/month | EU datacenter |
+| **Vultr** | Bare Metal<br/>Dual Xeon E5<br/>256 GB RAM<br/>2x 1.92TB NVMe | $500/month | Global locations |
+
+<Info>
+Dedicated servers often provide better price/performance than cloud VMs for long-term operation.
+</Info>
+
+## Network Requirements
+
+### Bandwidth
+
+| Node Type | Download | Upload | Monthly Transfer |
+|-----------|----------|--------|------------------|
+| Full Node | 10 Mbps | 5 Mbps | ~2 TB |
+| Archive Node | 25 Mbps | 10 Mbps | ~5 TB |
+| RPC Provider | 100 Mbps+ | 50 Mbps+ | ~20 TB+ |
+
+### Latency
+
+- **Peer communication**: &lt;200ms preferred
+- **Block propagation**: &lt;500ms ideal
+- **Geographic distribution**: Node in same region as users
+
+### Ports
+
+Required open ports:
+
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| 30303 | TCP/UDP | P2P networking |
+| 8545 | TCP | HTTP RPC (optional) |
+| 8546 | TCP | WebSocket RPC (optional) |
+
+## Operating System
+
+### Supported
+
+<Check>
+✅ **Ubuntu 22.04 LTS** (Recommended)  
+✅ Ubuntu 20.04 LTS  
+✅ Debian 11+  
+✅ CentOS 8 / Rocky Linux 8  
+✅ Fedora 36+
+</Check>
+
+### Not Recommended
+
+<Warning>
+❌ Windows (unsupported)  
+❌ macOS (development only)  
+❌ Ubuntu &lt; 20.04  
+❌ 32-bit systems
+</Warning>
+
+## Performance Benchmarks
+
+Real-world performance metrics:
+
+### Sync Time
+
+| Node Type | Hardware | Sync Time | Notes |
+|-----------|----------|-----------|-------|
+| Full (Min) | 4c/16GB/500GB SSD | 8-12 hours | From genesis |
+| Full (Rec) | 8c/32GB/1TB NVMe | 3-5 hours | From genesis |
+| Archive | 16c/128GB/8TB NVMe | 24-48 hours | Complete history |
+
+### RPC Performance
+
+| Hardware | Requests/sec | Concurrent Connections | Avg Latency |
+|----------|--------------|------------------------|-------------|
+| Minimum | 100-200 | 50 | 50-100ms |
+| Recommended | 500-1000 | 200 | 20-50ms |
+| High-end | 5000+ | 1000+ | &lt;10ms |
+
+## Cost Calculator
+
+Estimate your monthly costs:
+
+<Tabs>
+  <Tab title="Cloud (AWS)">
+    **Full Node (Recommended)**:
+    - EC2 c6i.2xlarge: $200
+    - 1TB EBS io2: $125
+    - Data transfer: $25
+    - **Total**: ~$350/month
+    
+    **Archive Node**:
+    - EC2 r6i.4xlarge: $650
+    - 8TB EBS io2: $1000
+    - Data transfer: $100
+    - **Total**: ~$1,750/month
+  </Tab>
+
+  <Tab title="Dedicated Server">
+    **Full Node**:
+    - Hetzner AX52: €79/month (~$85)
+    - Ryzen 9 5900X, 64GB, 2x1TB NVMe
+    - **Total**: ~$85/month
+    
+    **Archive Node**:
+    - Hetzner AX102: €179/month (~$195)
+    - Ryzen 9 5950X, 128GB, 2x2TB NVMe
+    - **Total**: ~$195/month
+  </Tab>
+
+  <Tab title="Self-Hosted">
+    **Initial Investment**:
+    - CPU: AMD Ryzen 9 5900X: $400
+    - Motherboard: $200
+    - RAM: 64GB DDR4: $200
+    - Storage: 2TB NVMe: $150
+    - Case + PSU: $150
+    - **Total**: ~$1,100
+    
+    **Monthly Costs**:
+    - Electricity (~150W): $20
+    - Internet: $50
+    - **Total**: ~$70/month
+    
+    **Break-even**: ~6 months vs Hetzner
+  </Tab>
+</Tabs>
+
+## Recommendations by Use Case
+
+<AccordionGroup>
+  <Accordion title="Development & Testing">
+    **Specs**: Minimum requirements sufficient
+    
+    - Local machine or small VPS
+    - 4 cores, 16GB RAM, 500GB SSD
+    - Testnet or mainnet
+    - Cost: $50-100/month (cloud) or free (local)
+  </Accordion>
+
+  <Accordion title="dApp Backend">
+    **Specs**: Recommended requirements
+    
+    - Dedicated server or cloud VM
+    - 8 cores, 32GB RAM, 1TB NVMe
+    - Production mainnet
+    - Cost: $85-350/month
+  </Accordion>
+
+  <Accordion title="Public RPC Service">
+    **Specs**: High-end configuration
+    
+    - Multiple nodes with load balancer
+    - 16+ cores, 64GB+ RAM, 2TB+ NVMe
+    - Redundancy and failover
+    - Cost: $500-2000/month
+  </Accordion>
+
+  <Accordion title="Block Explorer">
+    **Specs**: Archive node required
+    
+    - High-performance server
+    - 16+ cores, 128GB RAM, 8TB+ NVMe
+    - Full historical data
+    - Cost: $195-1750/month
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Non-Validator Setup" icon="gear" href="/node-operators/non-validator-setup">
+    Install your node
+  </Card>
+  
+  <Card title="Monitoring" icon="chart-line" href="/node-operators/monitoring">
+    Set up monitoring
+  </Card>
+</CardGroup>
