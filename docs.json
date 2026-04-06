@@ -44,7 +44,8 @@
               "staking/overview",
               "staking/run-validator",
               "staking/become-delegator",
-              "staking/proximity"
+              "staking/proximity",
+              "staking/halving"
             ]
           },
           {

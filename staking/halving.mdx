@@ -1,0 +1,522 @@
+---
+title: 'Halving Schedule'
+description: 'Block reward reduction timeline to control inflation'
+icon: 'chart-line-down'
+---
+
+## Introduction
+
+Fenine Network implements a **halving schedule** that systematically reduces block rewards over time. This mechanism ensures long-term sustainability by controlling inflation while maintaining security incentives for validators.
+
+<Info>
+**Key Points**:
+- **Initial Block Reward**: 3.5 FEN per block
+- **Halving Interval**: Every 10,512,000 blocks (~1 year)
+- **First Halving**: Block 10,512,000 (Q1 2026)
+- **Final Reward**: 0.109375 FEN per block (after 5 halvings)
+</Info>
+
+## Halving Mechanism
+
+### How It Works
+
+Every **10,512,000 blocks** (~365 days), the block reward is reduced by **50%**.
+
+**Formula**:
+
+$$
+R_n = R_0 \\times \\left(\\frac{1}{2}\\right)^n
+$$
+
+Where:
+- $R_n$: Block reward after $n$ halvings
+- $R_0$: Initial block reward (3.5 FEN)
+- $n$: Number of halvings
+
+### Block Time Calculation
+
+With 3-second block times:
+
+$$
+\\text{Blocks per year} = \\frac{365.25 \\times 24 \\times 60 \\times 60}{3} = 10,512,000 \\text{ blocks}
+$$
+
+## Halving Timeline
+
+<Tabs>
+  <Tab title="Schedule Overview">
+    | Halving | Block Height | Date (Est.) | Block Reward | Annual Emission | % of Initial |
+    |---------|--------------|-------------|--------------|-----------------|--------------|
+    | **Genesis** | 0 | 2025-01-01 | 3.5 FEN | 36,792,000 FEN | 100% |
+    | **1st** | 10,512,000 | 2026-01-01 | 1.75 FEN | 18,396,000 FEN | 50% |
+    | **2nd** | 21,024,000 | 2027-01-01 | 0.875 FEN | 9,198,000 FEN | 25% |
+    | **3rd** | 31,536,000 | 2028-01-01 | 0.4375 FEN | 4,599,000 FEN | 12.5% |
+    | **4th** | 42,048,000 | 2029-01-01 | 0.21875 FEN | 2,299,500 FEN | 6.25% |
+    | **5th** | 52,560,000 | 2030-01-01 | 0.109375 FEN | 1,149,750 FEN | 3.125% |
+    | **6th+** | 63,072,000+ | 2031+ | &lt;0.11 FEN | Decreasing | &lt;3% |
+    
+    <Info>
+    After 5 halvings, block rewards become negligible. Validators increasingly rely on transaction fees for revenue.
+    </Info>
+  </Tab>
+
+  <Tab title="Year by Year">
+    ### Year 1 (2025)
+    - **Period**: Block 0 - 10,512,000
+    - **Block Reward**: 3.5 FEN
+    - **Daily Emission**: ~100,800 FEN
+    - **Annual Emission**: 36,792,000 FEN
+    - **Inflation Rate**: ~36.8% (of 100M max supply)
+    
+    ### Year 2 (2026)
+    - **Period**: Block 10,512,001 - 21,024,000
+    - **Block Reward**: 1.75 FEN (halved)
+    - **Daily Emission**: ~50,400 FEN
+    - **Annual Emission**: 18,396,000 FEN
+    - **Inflation Rate**: ~13.5% (of circulating supply)
+    
+    ### Year 3 (2027)
+    - **Period**: Block 21,024,001 - 31,536,000
+    - **Block Reward**: 0.875 FEN
+    - **Daily Emission**: ~25,200 FEN
+    - **Annual Emission**: 9,198,000 FEN
+    - **Inflation Rate**: ~6.7%
+    
+    ### Year 4 (2028)
+    - **Period**: Block 31,536,001 - 42,048,000
+    - **Block Reward**: 0.4375 FEN
+    - **Daily Emission**: ~12,600 FEN
+    - **Annual Emission**: 4,599,000 FEN
+    - **Inflation Rate**: ~3.4%
+    
+    ### Year 5 (2029)
+    - **Period**: Block 42,048,001 - 52,560,000
+    - **Block Reward**: 0.21875 FEN
+    - **Daily Emission**: ~6,300 FEN
+    - **Annual Emission**: 2,299,500 FEN
+    - **Inflation Rate**: ~1.7%
+  </Tab>
+
+  <Tab title="Cumulative Supply">
+    Total FEN minted through block rewards:
+    
+    | Year | Cumulative Emission | % of Max Supply |
+    |------|---------------------|-----------------|
+    | 2025 | 36,792,000 | 36.79% |
+    | 2026 | 55,188,000 | 55.19% |
+    | 2027 | 64,386,000 | 64.39% |
+    | 2028 | 68,985,000 | 68.99% |
+    | 2029 | 71,284,500 | 71.28% |
+    | 2030 | 72,434,250 | 72.43% |
+    | 2035 | ~73,500,000 | ~73.5% |
+    | 2050 | ~73,580,000 | ~73.58% |
+    
+    **Maximum Theoretical Supply** (infinite halvings):
+    
+    $$
+    S_{\\text{max}} = R_0 \\times B_{\\text{year}} \\times \\sum_{n=0}^{\\infty} \\left(\\frac{1}{2}\\right)^n = 3.5 \\times 10,512,000 \\times 2 = 73,584,000 \\text{ FEN}
+    $$
+    
+    This is **73.58%** of the 100M max supply cap.
+  </Tab>
+</Tabs>
+
+## Economic Impact
+
+### Inflation Rate Over Time
+
+<Tabs>
+  <Tab title="Annual Inflation">
+    Chart of inflation rate (% increase in circulating supply):
+    
+    ```
+    Year 1:  36.8% ███████████████████████████████████████
+    Year 2:  13.5% ███████████████
+    Year 3:   6.7% ████████
+    Year 4:   3.4% ████
+    Year 5:   1.7% ██
+    Year 6:   0.8% █
+    Year 7:   0.4% 
+    Year 8:   0.2% 
+    Year 10: <0.1%
+    ```
+    
+    **Trend**: Exponential decrease, approaching 0% inflation.
+  </Tab>
+
+  <Tab title="Real Inflation">
+    Accounting for EIP-1559 burn mechanism:
+    
+    | Year | Block Emission | EIP-1559 Burn (est.) | Net Inflation |
+    |------|----------------|---------------------|---------------|
+    | 2025 | +36.79M FEN | -1.58M FEN | +35.21M (+35.2%) |
+    | 2026 | +18.40M FEN | -3.15M FEN | +15.25M (+11.2%) |
+    | 2027 | +9.20M FEN | -4.73M FEN | +4.47M (+3.3%) |
+    | 2028 | +4.60M FEN | -6.30M FEN | **-1.70M (-1.3%)** |
+    | 2029 | +2.30M FEN | -7.88M FEN | **-5.58M (-4.2%)** |
+    
+    <Info>
+    **Deflationary by Year 4**: With moderate network activity, Fenine becomes deflationary after 2028.
+    </Info>
+  </Tab>
+
+  <Tab title="Supply Curve">
+    Total supply projection:
+    
+    ```
+    100M ┤                                    ──────────── Max Cap
+         │                          ──────────
+     75M ┤                   ───────            Theoretical Max: 73.58M
+         │             ──────
+     50M ┤       ──────                         
+         │   ────                               
+     25M ┤───                                   
+         │
+       0 └────────────────────────────────────────────────
+         2025  2027  2029  2031  2033  2035  2037  2039
+    
+    Rapid growth initially, then flattening towards asymptotic limit.
+    ```
+  </Tab>
+</Tabs>
+
+### Validator Economics
+
+How halvings affect validator profitability:
+
+**Year 1 (2025)**: High Rewards Era
+- Block reward: 3.5 FEN
+- Validator with 1% stake: ~367,920 FEN/year
+- APY: **Very High** (early adopter advantage)
+
+**Year 2 (2026)**: First Halving
+- Block reward: 1.75 FEN (50% reduction)
+- Same validator: ~183,960 FEN/year
+- APY: **Still High** (50% of previous)
+- **Mitigation**: Network growth, more transaction fees
+
+**Year 3-4 (2027-2028)**: Transition Period
+- Block rewards continue decreasing
+- Transaction fees become significant
+- Validators optimize for fee capture
+- **APY**: Moderate but sustainable
+
+**Year 5+ (2029+)**: Fee-Dominant Era
+- Block rewards minimal
+- 80%+ revenue from transaction fees
+- High-activity validators earn more
+- **APY**: Competitive with traditional finance
+
+### Fee Market Evolution
+
+As block rewards decrease, transaction fees become primary validator revenue:
+
+| Year | Block Reward Revenue | Fee Revenue (est.) | Fee % of Total |
+|------|---------------------|-------------------|----------------|
+| 2025 | 95% | 5% | 5% |
+| 2026 | 90% | 10% | 10% |
+| 2027 | 80% | 20% | 20% |
+| 2028 | 65% | 35% | 35% |
+| 2029 | 45% | 55% | 55% |
+| 2030 | 30% | 70% | **70%** |
+| 2035 | &lt;10% | &gt;90% | **&gt;90%** |
+
+**Implication**: Validators increasingly compete for transaction throughput and fee optimization.
+
+## Impact on Staking APY
+
+### APY Projections
+
+Estimated staking APY over time (assumes stable network stake):
+
+<Tabs>
+  <Tab title="Conservative">
+    Low network activity, minimal fee revenue:
+    
+    | Year | Block Rewards | Fees | Total APY |
+    |------|---------------|------|-----------|
+    | 2025 | 36.8% | 0.5% | **37.3%** |
+    | 2026 | 18.4% | 1.0% | **19.4%** |
+    | 2027 | 9.2% | 1.5% | **10.7%** |
+    | 2028 | 4.6% | 2.0% | **6.6%** |
+    | 2029 | 2.3% | 2.5% | **4.8%** |
+    | 2030 | 1.15% | 3.0% | **4.15%** |
+    
+    Still competitive with traditional staking platforms.
+  </Tab>
+
+  <Tab title="Moderate">
+    Medium network activity, growing fee market:
+    
+    | Year | Block Rewards | Fees | Total APY |
+    |------|---------------|------|-----------|
+    | 2025 | 36.8% | 1.0% | **37.8%** |
+    | 2026 | 18.4% | 2.5% | **20.9%** |
+    | 2027 | 9.2% | 4.0% | **13.2%** |
+    | 2028 | 4.6% | 6.0% | **10.6%** |
+    | 2029 | 2.3% | 8.0% | **10.3%** |
+    | 2030 | 1.15% | 10.0% | **11.15%** |
+    
+    **Sustainable double-digit APY** through fee growth.
+  </Tab>
+
+  <Tab title="Optimistic">
+    High network activity, vibrant DeFi ecosystem:
+    
+    | Year | Block Rewards | Fees | Total APY |
+    |------|---------------|------|-----------|
+    | 2025 | 36.8% | 2.0% | **38.8%** |
+    | 2026 | 18.4% | 5.0% | **23.4%** |
+    | 2027 | 9.2% | 8.0% | **17.2%** |
+    | 2028 | 4.6% | 12.0% | **16.6%** |
+    | 2029 | 2.3% | 15.0% | **17.3%** |
+    | 2030 | 1.15% | 18.0% | **19.15%** |
+    
+    **APY remains high** as fee revenue offsets reward reduction.
+  </Tab>
+</Tabs>
+
+## Smart Contract Implementation
+
+### Halving Logic
+
+The halving is implemented in the FenineSystem contract:
+
+```solidity
+function getBlockReward(uint256 blockNumber) public pure returns (uint256) {
+    uint256 HALVING_INTERVAL = 10_512_000;
+    uint256 INITIAL_REWARD = 3.5 ether;
+    
+    // Calculate number of halvings
+    uint256 halvings = blockNumber / HALVING_INTERVAL;
+    
+    // Max 10 halvings (after that, reward is negligible)
+    if (halvings >= 10) {
+        return 0;
+    }
+    
+    // Calculate reward: initial_reward / (2^halvings)
+    return INITIAL_REWARD >> halvings;  // Bit shift = divide by 2
+}
+```
+
+### Query Current Reward
+
+```javascript
+// Using ethers.js
+const fenineSystem = new ethers.Contract(
+  "0x0000000000000000000000000000000000001000",
+  FENINE_SYSTEM_ABI,
+  provider
+);
+
+// Get current block number
+const blockNumber = await provider.getBlockNumber();
+
+// Get current block reward
+const reward = await fenineSystem.getBlockReward(blockNumber);
+
+console.log("Current block:", blockNumber);
+console.log("Block reward:", ethers.formatEther(reward), "FEN");
+
+// Calculate halvings occurred
+const halvings = Math.floor(blockNumber / 10512000);
+console.log("Halvings:", halvings);
+```
+
+### Check Next Halving
+
+```javascript
+const HALVING_INTERVAL = 10_512_000;
+
+const currentBlock = await provider.getBlockNumber();
+const currentHalving = Math.floor(currentBlock / HALVING_INTERVAL);
+const nextHalvingBlock = (currentHalving + 1) * HALVING_INTERVAL;
+const blocksUntilHalving = nextHalvingBlock - currentBlock;
+
+// Convert to time (3 second blocks)
+const secondsUntilHalving = blocksUntilHalving * 3;
+const daysUntilHalving = secondsUntilHalving / 86400;
+
+console.log("Next halving at block:", nextHalvingBlock);
+console.log("Blocks remaining:", blocksUntilHalving);
+console.log("Days until halving:", daysUntilHalving.toFixed(2));
+```
+
+## Comparison with Other Networks
+
+| Network | Halving Interval | Initial Reward | Current Reward | Total Supply Cap |
+|---------|------------------|----------------|----------------|------------------|
+| **Fenine** | 1 year | 3.5 FEN | 3.5 FEN | 100M |
+| Bitcoin | 4 years | 50 BTC | 6.25 BTC | 21M |
+| Litecoin | 4 years | 50 LTC | 12.5 LTC | 84M |
+| Bitcoin Cash | 4 years | 50 BCH | 6.25 BCH | 21M |
+| Dash | ~383 days | 50 DASH | ~2.7 DASH | 18.9M |
+
+**Fenine's Approach**:
+- **Faster halvings** (1 year vs 4 years) = quicker scarcity
+- **Higher initial inflation** = network bootstrap and growth
+- **Earlier deflation** = sustainable long-term tokenomics
+
+## Strategic Implications
+
+### For Validators
+
+<CardGroup cols={2}>
+  <Card title="Early Entry Advantage" icon="rocket">
+    **2025-2027**: Highest block rewards
+    
+    - Maximize earnings in first 2-3 years
+    - Build large stake early
+    - Establish validator reputation
+  </Card>
+  
+  <Card title="Fee Optimization" icon="chart-line">
+    **2028+**: Fee-dominant revenue
+    
+    - Optimize MEV extraction
+    - Run high-performance infrastructure
+    - Attract DeFi projects
+  </Card>
+  
+  <Card title="Commission Strategy" icon="percent">
+    **Adjust over time**
+    
+    - Year 1-2: Low commission (growth phase)
+    - Year 3-4: Moderate commission
+    - Year 5+: Higher commission (fee sharing)
+  </Card>
+  
+  <Card title="Diversification" icon="layer-group">
+    **Multiple revenue streams**
+    
+    - Block rewards (decreasing)
+    - Transaction fees (increasing)
+    - MEV opportunities
+    - Proximity rewards
+  </Card>
+</CardGroup>
+
+### For Delegators
+
+**Early Staking Benefits**:
+- Lock in high APY (Year 1-2)
+- Compound at maximum rates
+- Build large stake before halvings
+
+**Long-term Strategy**:
+- Choose validators with fee optimization
+- Redelegate to high-performance validators
+- Monitor APY trends
+
+### For Ecosystem
+
+**DApp Developers**:
+- Predictable supply schedule
+- Increasing scarcity drives token value
+- Fee market creates sustainable validator economics
+
+**Investors**:
+- Clear tokenomics roadmap
+- Deflationary trajectory
+- Bitcoin-like scarcity model
+
+## Frequently Asked Questions
+
+<AccordionGroup>
+  <Accordion title="Will APY drop to zero after halvings?">
+    **No.** Transaction fees replace block rewards as primary validator revenue.
+    
+    With moderate network activity, APY remains at **8-15%** even after 5 halvings (2030+).
+    
+    High-activity networks can sustain even higher APY from fees alone.
+  </Accordion>
+
+  <Accordion title="Should I stake now or wait?">
+    **Stake now.** Early stakers benefit from:
+    
+    - Highest block rewards (3.5 FEN/block)
+    - Compounding at maximum APY
+    - Lower network competition
+    - Earlier entry into proximity network
+    
+    Every year, rewards halve. Waiting means missing out.
+  </Accordion>
+
+  <Accordion title="What happens to validators after 10 halvings?">
+    After 10 halvings, block rewards become negligible (&lt;0.01 FEN).
+    
+    Validators survive on:
+    - **Transaction fees** (primary revenue)
+    - **MEV** (if applicable)
+    - **Commission** from delegators
+    
+    Similar to Bitcoin miners post-2140.
+  </Accordion>
+
+  <Accordion title="Can the halving schedule be changed?">
+    **Theoretically yes**, but highly unlikely.
+    
+    Changing would require:
+    - Network consensus (governance vote)
+    - Hard fork upgrade
+    - Community agreement
+    
+    Fenine's halving schedule is designed for long-term sustainability and unlikely to change.
+  </Accordion>
+
+  <Accordion title="How does halving affect FEN price?">
+    **Historical pattern** (from Bitcoin, Litecoin):
+    
+    1. **Pre-halving rally** (3-6 months before)
+    2. **Halving event** (price may spike or dip)
+    3. **Post-halving accumulation** (6-12 months after)
+    4. **Bull run** (12-18 months after)
+    
+    Reduced supply + constant/increasing demand = upward price pressure.
+    
+    **Note**: Past performance doesn't guarantee future results.
+  </Accordion>
+</AccordionGroup>
+
+## Halving Countdown
+
+Track the next halving:
+
+**Live Dashboard**: [fene.app/halving](https://fene.app/halving)
+
+Features:
+- Real-time countdown
+- Current block reward
+- Historical halving data
+- Supply curve visualization
+- APY projections
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Staking Overview" icon="coins" href="/staking/overview">
+    Learn about staking mechanics
+  </Card>
+  
+  <Card title="Economic Model" icon="chart-pie" href="/architecture/fpos">
+    FPoS tokenomics deep dive
+  </Card>
+  
+  <Card title="Run a Validator" icon="server" href="/staking/run-validator">
+    Start earning block rewards
+  </Card>
+  
+  <Card title="Block Explorer" icon="magnifying-glass" href="https://explorer.fene.app">
+    View current block height
+  </Card>
+</CardGroup>
+
+<Note>
+**Halving Support**:
+- Discord: [#economics](https://discord.gg/fenines)
+- Email: tokenomics@fene.network
+- Research: [Research Portal](https://research.fene.app)
+
+Stay updated on halving events and economic analysis!
+</Note>
