@@ -103,7 +103,7 @@ Fenine implements **100% EVM compatibility** at the London hardfork level:
     module.exports = {
       networks: {
         fenine: {
-          url: "https://vault-api.fene.app",
+          url: "https://rpc.fene.app",
           chainId: 5881,
           accounts: [process.env.PRIVATE_KEY]
         }
@@ -338,7 +338,7 @@ for (const va of validators) {
   <Tab title="RPC Endpoints">
     **Mainnet**:
     ```
-    https://vault-api.fene.app
+    https://rpc.fene.app
     Chain ID: 5881
     Symbol: FEN
     ```
@@ -590,7 +590,7 @@ Fenine offers funding for promising projects:
     
     // After (Fenine)
     const provider = new ethers.JsonRpcProvider(
-      "https://vault-api.fene.app"
+      "https://rpc.fene.app"
     );
     ```
   </Step>

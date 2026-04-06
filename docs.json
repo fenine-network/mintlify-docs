@@ -61,6 +61,17 @@
         ]
       },
       {
+        "tab": "Node Operators",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "node-operators/overview"
+            ]
+          }
+        ]
+      },
+      {
         "tab": "API reference",
         "groups": [
           {
