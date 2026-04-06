@@ -1,0 +1,287 @@
+---
+title: 'getCurrentEpoch'
+description: 'Get the current epoch number'
+api: 'POST eth_call'
+---
+
+## Overview
+
+Queries the FenineSystem contract to get the current epoch number. Epochs are periods of 200 blocks where validator set updates and reward distributions occur.
+
+## Contract Call Details
+
+<ParamField path="to" type="address" required>
+  `0x0000000000000000000000000000000000001000` (FenineSystem)
+</ParamField>
+
+<ParamField path="data" type="bytes" required>
+  Function call: `getCurrentEpoch()`
+</ParamField>
+
+## Response
+
+<ResponseField name="result" type="uint256">
+  Current epoch number (0-indexed)
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+```javascript Web3.js
+const Web3 = require('web3');
+const web3 = new Web3('https://rpc.fene.app');
+
+const abi = JSON.parse(await web3.getSystemContractABI());
+const contract = new web3.eth.Contract(
+  abi,
+  '0x0000000000000000000000000000000000001000'
+);
+
+const epoch = await contract.methods.getCurrentEpoch().call();
+console.log('Current epoch:', epoch);
+
+// Also calculate manually from block number
+const currentBlock = await web3.eth.getBlockNumber();
+const EPOCH_BLOCKS = 200;
+const calculatedEpoch = Math.floor(currentBlock / EPOCH_BLOCKS);
+
+console.log('Block:', currentBlock);
+console.log('Calculated epoch:', calculatedEpoch);
+console.log('Match:', epoch == calculatedEpoch);
+```
+
+```javascript ethers.js
+const { ethers } = require('ethers');
+
+const provider = new ethers.JsonRpcProvider('https://rpc.fene.app');
+
+const abiJson = await provider.send('fenine_getSystemContractABI', []);
+const abi = JSON.parse(abiJson);
+
+const contract = new ethers.Contract(
+  '0x0000000000000000000000000000000000001000',
+  abi,
+  provider
+);
+
+const epoch = await contract.getCurrentEpoch();
+console.log('Current epoch:', Number(epoch));
+```
+
+```python Python
+from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider('https://rpc.fene.app'))
+
+system_contract = w3.eth.contract(
+    address='0x0000000000000000000000000000000000001000',
+    abi=system_abi
+)
+
+epoch = system_contract.functions.getCurrentEpoch().call()
+print(f'Current epoch: {epoch}')
+```
+</CodeGroup>
+
+## Epoch Calculation
+
+You can also calculate the epoch from the current block number:
+
+```javascript
+const currentBlock = await web3.eth.getBlockNumber();
+const EPOCH_BLOCKS = 200;
+
+const currentEpoch = Math.floor(currentBlock / EPOCH_BLOCKS);
+const blockInEpoch = currentBlock % EPOCH_BLOCKS;
+const blocksUntilNextEpoch = EPOCH_BLOCKS - blockInEpoch;
+
+console.log({
+  currentBlock,
+  currentEpoch,
+  blockInEpoch,
+  blocksUntilNextEpoch,
+  estimatedTimeUntilNext: (blocksUntilNextEpoch * 3 / 60).toFixed(1) + ' minutes'
+});
+```
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Monitor Epoch Transitions">
+    ```javascript
+    async function monitorEpochTransitions() {
+      let lastEpoch = await contract.methods.getCurrentEpoch().call();
+      
+      setInterval(async () => {
+        const currentEpoch = await contract.methods.getCurrentEpoch().call();
+        
+        if (currentEpoch != lastEpoch) {
+          console.log('='.repeat(50));
+          console.log('NEW EPOCH:', currentEpoch);
+          console.log('='.repeat(50));
+          
+          // Fetch updated data
+          const validators = await contract.methods.getActiveValidators().call();
+          const totalStake = await contract.methods.totalNetworkStake().call();
+          
+          console.log('Active validators:', validators.length);
+          console.log('Total stake:', web3.utils.fromWei(totalStake, 'ether'), 'FEN');
+          
+          lastEpoch = currentEpoch;
+          
+          // Trigger your application logic
+          // e.g., refresh dashboard, recalculate rewards, etc.
+        }
+      }, 3000); // Check every block (~3s)
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Calculate Time Until Next Epoch">
+    ```javascript
+    async function getTimeUntilNextEpoch() {
+      const currentBlock = await web3.eth.getBlockNumber();
+      const EPOCH_BLOCKS = 200;
+      const BLOCK_TIME = 3; // seconds
+      
+      const currentEpoch = Math.floor(currentBlock / EPOCH_BLOCKS);
+      const blockInEpoch = currentBlock % EPOCH_BLOCKS;
+      const blocksRemaining = EPOCH_BLOCKS - blockInEpoch;
+      
+      const secondsRemaining = blocksRemaining * BLOCK_TIME;
+      const minutesRemaining = secondsRemaining / 60;
+      
+      return {
+        currentEpoch,
+        currentBlock,
+        blockInEpoch: `${blockInEpoch}/${EPOCH_BLOCKS}`,
+        progress: ((blockInEpoch / EPOCH_BLOCKS) * 100).toFixed(1) + '%',
+        blocksRemaining,
+        timeRemaining: {
+          seconds: secondsRemaining,
+          minutes: minutesRemaining.toFixed(1),
+          formatted: `${Math.floor(minutesRemaining)}m ${secondsRemaining % 60}s`
+        }
+      };
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Build Epoch History">
+    ```javascript
+    async function buildEpochHistory(epochCount = 10) {
+      const currentEpoch = await contract.methods.getCurrentEpoch().call();
+      const currentBlock = await web3.eth.getBlockNumber();
+      
+      const history = [];
+      
+      for (let i = 0; i < epochCount; i++) {
+        const epoch = parseInt(currentEpoch) - i;
+        if (epoch < 0) break;
+        
+        const epochStartBlock = epoch * 200;
+        const epochEndBlock = epochStartBlock + 199;
+        
+        // Get block timestamps (if needed)
+        // const startBlockData = await web3.eth.getBlock(epochStartBlock);
+        
+        history.push({
+          epoch,
+          startBlock: epochStartBlock,
+          endBlock: epochEndBlock,
+          isComplete: currentBlock > epochEndBlock,
+          isCurrent: epoch == currentEpoch
+        });
+      }
+      
+      return history;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Schedule Action at Next Epoch">
+    ```javascript
+    async function scheduleAtNextEpoch(callback) {
+      const currentBlock = await web3.eth.getBlockNumber();
+      const EPOCH_BLOCKS = 200;
+      
+      const nextEpochBlock = Math.ceil(currentBlock / EPOCH_BLOCKS) * EPOCH_BLOCKS;
+      const blocksToWait = nextEpochBlock - currentBlock;
+      
+      console.log(`Waiting ${blocksToWait} blocks until next epoch...`);
+      console.log(`Estimated time: ${(blocksToWait * 3 / 60).toFixed(1)} minutes`);
+      
+      // Subscribe to new blocks
+      const subscription = web3.eth.subscribe('newBlockHeaders');
+      
+      subscription.on('data', async (blockHeader) => {
+        if (blockHeader.number >= nextEpochBlock) {
+          console.log('Next epoch reached!');
+          subscription.unsubscribe();
+          await callback();
+        }
+      });
+      
+      return subscription;
+    }
+    
+    // Usage
+    await scheduleAtNextEpoch(async () => {
+      console.log('Refreshing validator data...');
+      const validators = await contract.methods.getActiveValidators().call();
+      console.log('Updated validators:', validators);
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Epoch Information
+
+```javascript
+async function getFullEpochInfo() {
+  const [currentEpoch, currentBlock, constants] = await Promise.all([
+    contract.methods.getCurrentEpoch().call(),
+    web3.eth.getBlockNumber(),
+    web3.getContractConstants()
+  ]);
+  
+  const EPOCH_BLOCKS = constants.blockEpoch;
+  const blockInEpoch = currentBlock % EPOCH_BLOCKS;
+  const epochStartBlock = Math.floor(currentBlock / EPOCH_BLOCKS) * EPOCH_BLOCKS;
+  const epochEndBlock = epochStartBlock + EPOCH_BLOCKS - 1;
+  const nextEpochBlock = epochEndBlock + 1;
+  
+  return {
+    current: {
+      epoch: currentEpoch,
+      block: currentBlock
+    },
+    thisEpoch: {
+      startBlock: epochStartBlock,
+      endBlock: epochEndBlock,
+      currentBlock: blockInEpoch,
+      progress: ((blockInEpoch / EPOCH_BLOCKS) * 100).toFixed(1) + '%'
+    },
+    nextEpoch: {
+      epoch: parseInt(currentEpoch) + 1,
+      startBlock: nextEpochBlock,
+      blocksUntil: nextEpochBlock - currentBlock,
+      estimatedTime: ((nextEpochBlock - currentBlock) * 3 / 60).toFixed(1) + ' minutes'
+    }
+  };
+}
+```
+
+## Related Methods
+
+<CardGroup cols={3}>
+  <Card title="getContractConstants" href="/api-reference/rpc/fenine/get-contract-constants">
+    Get EPOCH_BLOCKS constant (200)
+  </Card>
+  <Card title="getNextEpochReward" href="/api-reference/rpc/eth/get-next-epoch-reward">
+    Get reward pool for next epoch
+  </Card>
+  <Card title="updateValidatorCandidates" href="/api-reference/contracts/fenine-system#updatevalidatorcandidates">
+    System TX at epoch boundary
+  </Card>
+</CardGroup>

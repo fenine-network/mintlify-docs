@@ -1,0 +1,124 @@
+---
+title: 'RPC Overview'
+description: 'Overview of Fenines Network RPC endpoints'
+---
+
+## Introduction
+
+Fenines Network provides both standard Ethereum JSON-RPC endpoints and custom Fenine-specific endpoints for interacting with the blockchain and consensus layer.
+
+## RPC Namespaces
+
+<CardGroup cols={2}>
+  <Card title="fenine_*" icon="network-wired" href="/api-reference/rpc/fenine-namespace">
+    Fenine consensus and system contract methods
+  </Card>
+  <Card title="eth_*" icon="ethereum" href="/api-reference/rpc/eth-namespace">
+    Standard Ethereum JSON-RPC methods
+  </Card>
+</CardGroup>
+
+## Connection
+
+### Mainnet
+```
+https://rpc.fene.app
+```
+
+### Testnet
+```
+https://testnet-rpc.fene.network
+```
+
+## Quick Example
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "fenine_getSigners",
+    "params": ["latest"],
+    "id": 1
+  }'
+```
+
+```javascript JavaScript
+const Web3 = require('web3');
+const web3 = new Web3('https://rpc.fene.app');
+
+// Get current signers
+const result = await web3.eth.extend({
+  methods: [{
+    name: 'getSigners',
+    call: 'fenine_getSigners',
+    params: 1
+  }]
+});
+
+const signers = await web3.eth.getSigners('latest');
+console.log('Current signers:', signers);
+```
+
+```python Python
+from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider('https://rpc.fene.app'))
+
+# Make custom RPC call
+result = w3.provider.make_request(
+    'fenine_getSigners',
+    ['latest']
+)
+
+print('Current signers:', result['result'])
+```
+</CodeGroup>
+
+## Response Format
+
+All RPC methods follow the JSON-RPC 2.0 specification:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": { ... }
+}
+```
+
+Error responses include an error object:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": {
+    "code": -32600,
+    "message": "Invalid request"
+  }
+}
+```
+
+## Rate Limits
+
+<Note>
+Public RPC endpoints are rate-limited. For production applications, consider running your own node or using a dedicated RPC provider.
+</Note>
+
+| Tier | Requests/Second | Requests/Day |
+|------|-----------------|--------------|
+| Public | 10 | 100,000 |
+| Premium | 100 | 1,000,000 |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Fenine Methods" icon="server" href="/api-reference/rpc/fenine-namespace">
+    Explore Fenine-specific RPC methods
+  </Card>
+  <Card title="Ethereum Methods" icon="ethereum" href="/api-reference/rpc/eth-namespace">
+    Standard Ethereum JSON-RPC methods
+  </Card>
+</CardGroup>

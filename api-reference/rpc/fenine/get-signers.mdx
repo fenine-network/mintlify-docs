@@ -1,0 +1,115 @@
+---
+title: 'fenine_getSigners'
+description: 'Get list of authorized signers (bootstrap nodes)'
+api: 'GET fenine_getSigners'
+---
+
+## Overview
+
+Retrieves the list of authorized signers (bootstrap nodes) at a given block. These are the addresses authorized to produce blocks in the Fenine consensus.
+
+## Parameters
+
+<ParamField path="blockNumber" type="string" default="latest">
+  Block number in hex or "latest"
+</ParamField>
+
+## Response
+
+<ResponseField name="result" type="array">
+  Array of signer addresses (e.g., `["0x1234...", "0x5678..."]`)
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "fenine_getSigners",
+    "params": ["latest"],
+    "id": 1
+  }'
+```
+
+```javascript JavaScript
+const Web3 = require('web3');
+const web3 = new Web3('https://rpc.fene.app');
+
+web3.extend({
+  methods: [{
+    name: 'getSigners',
+    call: 'fenine_getSigners',
+    params: 1
+  }]
+});
+
+const signers = await web3.getSigners('latest');
+console.log('Current signers:', signers);
+console.log('Total signers:', signers.length);
+```
+
+```python Python
+from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider('https://rpc.fene.app'))
+
+result = w3.provider.make_request(
+    'fenine_getSigners',
+    ['latest']
+)
+
+signers = result['result']
+print(f'Signers: {signers}')
+print(f'Count: {len(signers)}')
+```
+</CodeGroup>
+
+## Response Example
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": [
+    "0x1111111111111111111111111111111111111111",
+    "0x2222222222222222222222222222222222222222",
+    "0x3333333333333333333333333333333333333333"
+  ]
+}
+```
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Monitor Bootstrap Nodes">
+    Track which bootstrap nodes are authorized to produce blocks.
+  </Accordion>
+  
+  <Accordion title="Verify Network Security">
+    Ensure the network has sufficient authorized signers for security.
+  </Accordion>
+  
+  <Accordion title="Build Node Monitoring">
+    Create dashboards to monitor signer activity and uptime.
+  </Accordion>
+</AccordionGroup>
+
+## Notes
+
+<Info>
+Bootstrap nodes (signers) are different from validators. Signers authorize blocks at the consensus layer, while validators stake and earn rewards at the contract layer.
+</Info>
+
+## Related Methods
+
+<CardGroup cols={2}>
+  <Card title="fenine_getSnapshot" href="/api-reference/rpc/fenine/get-snapshot">
+    Get full snapshot with signer activity
+  </Card>
+  <Card title="getActiveValidators" href="/api-reference/rpc/eth/get-active-validators">
+    Get active validators from contract
+  </Card>
+</CardGroup>

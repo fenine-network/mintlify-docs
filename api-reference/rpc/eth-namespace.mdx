@@ -1,0 +1,575 @@
+---
+title: 'eth_* Methods'
+description: 'Standard Ethereum JSON-RPC methods and System Contract queries'
+---
+
+## Overview
+
+Fenines Network supports all standard Ethereum JSON-RPC methods. This page focuses on using `eth_call` to query the FenineSystem smart contract.
+
+<Info>
+For complete Ethereum JSON-RPC documentation, see the [Ethereum JSON-RPC Specification](https://ethereum.github.io/execution-apis/).
+</Info>
+
+## System Contract Queries
+
+The FenineSystem contract at `0x0000000000000000000000000000000000001000` exposes view functions that can be queried using `eth_call`.
+
+### Query Pattern
+
+All queries follow this pattern:
+
+```bash
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "eth_call",
+    "params": [{
+      "to": "0x0000000000000000000000000000000000001000",
+      "data": "<FUNCTION_SELECTOR><ENCODED_PARAMS>"
+    }, "latest"],
+    "id": 1
+  }'
+```
+
+---
+
+## Validator Queries
+
+### getActiveValidators()
+
+Get the list of currently active validators.
+
+<ParamField path="selector" type="string">
+  Function selector: `0x9de70258` (no parameters)
+</ParamField>
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "eth_call",
+    "params": [{
+      "to": "0x0000000000000000000000000000000000001000",
+      "data": "0x9de70258"
+    }, "latest"],
+    "id": 1
+  }'
+```
+
+```javascript JavaScript
+const Web3 = require('web3');
+const web3 = new Web3('https://rpc.fene.app');
+
+const result = await web3.eth.call({
+  to: '0x0000000000000000000000000000000000001000',
+  data: '0x9de70258'
+}, 'latest');
+
+// Decode result (array of addresses)
+const validators = web3.eth.abi.decodeParameter('address[]', result);
+console.log('Active validators:', validators);
+```
+
+```python Python
+from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider('https://rpc.fene.app'))
+
+result = w3.eth.call({
+    'to': '0x0000000000000000000000000000000000001000',
+    'data': '0x9de70258'
+}, 'latest')
+
+# Decode result
+validators = w3.codec.decode(['address[]'], result)[0]
+print('Active validators:', validators)
+```
+</CodeGroup>
+
+<ResponseField name="result" type="bytes">
+  ABI-encoded array of validator addresses. Decode as `address[]`.
+</ResponseField>
+
+---
+
+### getValidatorInfo(address)
+
+Get detailed information about a specific validator.
+
+<ParamField path="selector" type="string">
+  `0xb5d89627`
+</ParamField>
+
+<ParamField path="validator" type="address" required>
+  Validator address (32-byte padded)
+</ParamField>
+
+<CodeGroup>
+```bash cURL
+# Replace <VALIDATOR_ADDRESS> with actual address (without 0x)
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "eth_call",
+    "params": [{
+      "to": "0x0000000000000000000000000000000000001000",
+      "data": "0xb5d89627000000000000000000000000<VALIDATOR_ADDRESS>"
+    }, "latest"],
+    "id": 1
+  }'
+```
+
+```javascript JavaScript
+const validatorAddress = '0x1234567890123456789012345678901234567890';
+
+// Encode function call
+const data = web3.eth.abi.encodeFunctionCall({
+  name: 'getValidatorInfo',
+  type: 'function',
+  inputs: [{
+    type: 'address',
+    name: 'vaAddr'
+  }]
+}, [validatorAddress]);
+
+const result = await web3.eth.call({
+  to: '0x0000000000000000000000000000000000001000',
+  data: data
+}, 'latest');
+
+// Decode result
+const decoded = web3.eth.abi.decodeParameters([
+  'uint8',   // status
+  'uint256', // selfStake
+  'uint256', // totalStake
+  'uint256', // commissionRate
+  'uint256', // claimableReward
+  'uint256'  // stakerCount
+], result);
+
+console.log({
+  status: decoded[0],        // 0=NOT_EXIST, 1=CREATED, 2=STAKED, 3=VALIDATED, 4=UNSTAKED
+  selfStake: decoded[1],
+  totalStake: decoded[2],
+  commissionRate: decoded[3],
+  claimableReward: decoded[4],
+  stakerCount: decoded[5]
+});
+```
+</CodeGroup>
+
+<ResponseField name="result" type="tuple">
+  Returns:
+  
+  <Expandable title="Response Fields">
+    <ResponseField name="status" type="uint8">
+      - `0`: NOT_EXIST
+      - `1`: CREATED (registered)
+      - `2`: STAKED
+      - `3`: VALIDATED (active)
+      - `4`: UNSTAKED
+    </ResponseField>
+    <ResponseField name="selfStake" type="uint256">
+      Validator's self-stake amount in wei
+    </ResponseField>
+    <ResponseField name="totalStake" type="uint256">
+      Total stake (self + delegated) in wei
+    </ResponseField>
+    <ResponseField name="commissionRate" type="uint256">
+      Commission rate in basis points (e.g., 500 = 5%)
+    </ResponseField>
+    <ResponseField name="claimableReward" type="uint256">
+      Pending rewards available to claim in wei
+    </ResponseField>
+    <ResponseField name="stakerCount" type="uint256">
+      Number of delegators staked to this validator
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### getValidatorStakers(address)
+
+Get the list of delegators staked to a validator (in proximity order).
+
+<ParamField path="selector" type="string">
+  Function selector for `getValidatorStakers(address)`
+</ParamField>
+
+<CodeGroup>
+```javascript JavaScript
+const validatorAddress = '0x1234567890123456789012345678901234567890';
+
+const data = web3.eth.abi.encodeFunctionCall({
+  name: 'getValidatorStakers',
+  type: 'function',
+  inputs: [{ type: 'address', name: 'vaAddr' }]
+}, [validatorAddress]);
+
+const result = await web3.eth.call({
+  to: '0x0000000000000000000000000000000000001000',
+  data: data
+}, 'latest');
+
+const stakers = web3.eth.abi.decodeParameter('address[]', result);
+console.log('Delegators (proximity order):', stakers);
+```
+</CodeGroup>
+
+<ResponseField name="result" type="address[]">
+  Array of delegator addresses in proximity order (first staker = deepest in chain)
+</ResponseField>
+
+<Note>
+The order matters for proximity rewards. Earlier addresses in the array are deeper in the referral chain.
+</Note>
+
+---
+
+## Delegator Queries
+
+### getDelegatorInfo(address delegator, address validator)
+
+Get information about a delegator's stake with a specific validator.
+
+<ParamField path="selector" type="string">
+  `0xa993683f`
+</ParamField>
+
+<CodeGroup>
+```bash cURL
+# Replace addresses (without 0x)
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "eth_call",
+    "params": [{
+      "to": "0x0000000000000000000000000000000000001000",
+      "data": "0xa993683f000000000000000000000000<DELEGATOR_ADDRESS>000000000000000000000000<VALIDATOR_ADDRESS>"
+    }, "latest"],
+    "id": 1
+  }'
+```
+
+```javascript JavaScript
+const delegatorAddress = '0x1111...';
+const validatorAddress = '0x2222...';
+
+const data = web3.eth.abi.encodeFunctionCall({
+  name: 'getDelegatorInfo',
+  type: 'function',
+  inputs: [
+    { type: 'address', name: 'dcAddr' },
+    { type: 'address', name: 'vaAddr' }
+  ]
+}, [delegatorAddress, validatorAddress]);
+
+const result = await web3.eth.call({
+  to: '0x0000000000000000000000000000000000001000',
+  data: data
+}, 'latest');
+
+const decoded = web3.eth.abi.decodeParameters([
+  'uint8',   // status
+  'uint256', // stakeAmount
+  'uint256', // pendingRewards
+  'uint256', // joinedAt
+  'uint256'  // stakerIndex
+], result);
+
+console.log({
+  status: decoded[0],        // 0=NOT_EXIST, 1=ACTIVE, 2=UNSTAKING
+  stakeAmount: decoded[1],
+  pendingRewards: decoded[2],
+  joinedAt: decoded[3],
+  stakerIndex: decoded[4]
+});
+```
+</CodeGroup>
+
+<ResponseField name="result" type="tuple">
+  <Expandable title="Response Fields">
+    <ResponseField name="status" type="uint8">
+      - `0`: NOT_EXIST
+      - `1`: ACTIVE
+      - `2`: UNSTAKING
+    </ResponseField>
+    <ResponseField name="stakeAmount" type="uint256">
+      Delegator's stake amount in wei
+    </ResponseField>
+    <ResponseField name="pendingRewards" type="uint256">
+      Accumulated pending rewards in wei
+    </ResponseField>
+    <ResponseField name="joinedAt" type="uint256">
+      Block number when delegator first staked
+    </ResponseField>
+    <ResponseField name="stakerIndex" type="uint256">
+      Position in proximity chain (0-based)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### getEstimatedDelegatorReward(address delegator, address validator)
+
+Calculate estimated rewards for a delegator (including proximity and tax effects).
+
+<CodeGroup>
+```javascript JavaScript
+const data = web3.eth.abi.encodeFunctionCall({
+  name: 'getEstimatedDelegatorReward',
+  type: 'function',
+  inputs: [
+    { type: 'address', name: 'dcAddr' },
+    { type: 'address', name: 'vaAddr' }
+  ]
+}, [delegatorAddress, validatorAddress]);
+
+const result = await web3.eth.call({
+  to: '0x0000000000000000000000000000000000001000',
+  data: data
+}, 'latest');
+
+const [pending, afterProximity, afterTax] = web3.eth.abi.decodeParameters([
+  'uint256',
+  'uint256',
+  'uint256'
+], result);
+
+console.log('Pending rewards:', web3.utils.fromWei(pending, 'ether'));
+console.log('After proximity:', web3.utils.fromWei(afterProximity, 'ether'));
+console.log('After tax:', web3.utils.fromWei(afterTax, 'ether'));
+```
+</CodeGroup>
+
+<ResponseField name="result" type="tuple">
+  <ResponseField name="pending" type="uint256">
+    Raw pending rewards before any deductions
+  </ResponseField>
+  <ResponseField name="afterProximity" type="uint256">
+    Rewards after proximity distribution (may include bonus)
+  </ResponseField>
+  <ResponseField name="afterTax" type="uint256">
+    Final amount delegator will receive after tax
+  </ResponseField>
+</ResponseField>
+
+---
+
+## Network State Queries
+
+### totalNetworkStake()
+
+Get the total amount of FEN staked across all validators.
+
+<ParamField path="selector" type="string">
+  `0x635c8637`
+</ParamField>
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "eth_call",
+    "params": [{
+      "to": "0x0000000000000000000000000000000000001000",
+      "data": "0x635c8637"
+    }, "latest"],
+    "id": 1
+  }'
+```
+
+```javascript JavaScript
+const result = await web3.eth.call({
+  to: '0x0000000000000000000000000000000000001000',
+  data: '0x635c8637'
+}, 'latest');
+
+const totalStake = web3.eth.abi.decodeParameter('uint256', result);
+console.log('Total network stake:', web3.utils.fromWei(totalStake, 'ether'), 'FEN');
+```
+</CodeGroup>
+
+<ResponseField name="result" type="uint256">
+  Total staked amount in wei
+</ResponseField>
+
+---
+
+### getCurrentEpoch()
+
+Get the current epoch number.
+
+<CodeGroup>
+```javascript JavaScript
+const data = web3.eth.abi.encodeFunctionSignature('getCurrentEpoch()');
+
+const result = await web3.eth.call({
+  to: '0x0000000000000000000000000000000000001000',
+  data: data
+}, 'latest');
+
+const epoch = web3.eth.abi.decodeParameter('uint256', result);
+console.log('Current epoch:', epoch);
+```
+</CodeGroup>
+
+---
+
+### getNextEpochReward()
+
+Get the contract balance (reward pool for next epoch distribution).
+
+<CodeGroup>
+```javascript JavaScript
+const balance = await web3.eth.getBalance(
+  '0x0000000000000000000000000000000000001000'
+);
+
+console.log('Next epoch reward pool:', web3.utils.fromWei(balance, 'ether'), 'FEN');
+```
+</CodeGroup>
+
+<Tip>
+You can also query this via the contract's `getNextEpochReward()` view function.
+</Tip>
+
+---
+
+## Proximity Configuration
+
+### getProximityConfig()
+
+Get the current proximity reward distribution configuration.
+
+<CodeGroup>
+```javascript JavaScript
+const data = web3.eth.abi.encodeFunctionSignature('getProximityConfig()');
+
+const result = await web3.eth.call({
+  to: '0x0000000000000000000000000000000000001000',
+  data: data
+}, 'latest');
+
+const [totalBps, depth, rewardBps] = web3.eth.abi.decodeParameters([
+  'uint16',
+  'uint8',
+  'uint16[8]'
+], result);
+
+console.log('Total proximity allocation:', totalBps / 100, '%');
+console.log('Depth levels:', depth);
+console.log('Per-level BPS:', rewardBps.map(bps => bps / 100 + '%'));
+```
+</CodeGroup>
+
+<ResponseField name="result" type="tuple">
+  <ResponseField name="totalBps" type="uint16">
+    Total proximity allocation in basis points (e.g., 3000 = 30%)
+  </ResponseField>
+  <ResponseField name="depth" type="uint8">
+    Number of proximity levels (8)
+  </ResponseField>
+  <ResponseField name="rewardBps" type="uint16[8]">
+    Per-level distribution in basis points
+  </ResponseField>
+</ResponseField>
+
+---
+
+## Using Web3 Libraries
+
+<Tabs>
+  <Tab title="ethers.js">
+    ```javascript
+    const { ethers } = require('ethers');
+    
+    const provider = new ethers.JsonRpcProvider('https://rpc.fene.app');
+    
+    // Get ABI (once)
+    const abiResponse = await provider.send('fenine_getSystemContractABI', []);
+    const abi = JSON.parse(abiResponse);
+    
+    // Create contract instance
+    const systemContract = new ethers.Contract(
+      '0x0000000000000000000000000000000000001000',
+      abi,
+      provider
+    );
+    
+    // Query methods
+    const validators = await systemContract.getActiveValidators();
+    const totalStake = await systemContract.totalNetworkStake();
+    const epoch = await systemContract.getCurrentEpoch();
+    
+    console.log('Active validators:', validators.length);
+    console.log('Total stake:', ethers.formatEther(totalStake), 'FEN');
+    console.log('Current epoch:', epoch.toString());
+    ```
+  </Tab>
+  
+  <Tab title="viem">
+    ```javascript
+    import { createPublicClient, http } from 'viem';
+    import { fenineNetwork } from './chains'; // Define your chain
+    
+    const client = createPublicClient({
+      chain: fenineNetwork,
+      transport: http('https://rpc.fene.app')
+    });
+    
+    // Read from contract
+    const validators = await client.readContract({
+      address: '0x0000000000000000000000000000000000001000',
+      abi: systemContractABI,
+      functionName: 'getActiveValidators'
+    });
+    
+    const totalStake = await client.readContract({
+      address: '0x0000000000000000000000000000000000001000',
+      abi: systemContractABI,
+      functionName: 'totalNetworkStake'
+    });
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Function Selectors Reference
+
+| Function | Selector | Parameters |
+|----------|----------|------------|
+| `getActiveValidators()` | `0x9de70258` | None |
+| `getValidatorInfo(address)` | `0xb5d89627` | address |
+| `getDelegatorInfo(address,address)` | `0xa993683f` | address, address |
+| `totalNetworkStake()` | `0x635c8637` | None |
+| `getCurrentEpoch()` | - | None |
+| `getProximityConfig()` | - | None |
+
+<Info>
+For a complete list of function selectors, see the [Quick Reference](/api-reference/quick-reference) page.
+</Info>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Smart Contract Reference" icon="file-contract" href="/api-reference/contracts/fenine-system">
+    Full FenineSystem contract documentation
+  </Card>
+  <Card title="Quick Reference" icon="bolt" href="/api-reference/quick-reference">
+    Common queries and selectors
+  </Card>
+</CardGroup>

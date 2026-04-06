@@ -1,0 +1,293 @@
+---
+title: 'totalNetworkStake'
+description: 'Get total amount of FEN staked across all validators'
+api: 'POST eth_call'
+---
+
+## Overview
+
+Queries the FenineSystem contract to get the total amount of FEN staked across all validators in the network. This includes both validator self-stakes and delegator stakes.
+
+## Contract Call Details
+
+<ParamField path="to" type="address" required>
+  `0x0000000000000000000000000000000000001000` (FenineSystem)
+</ParamField>
+
+<ParamField path="data" type="bytes" required>
+  Function selector: `0x635c8637` (no parameters)
+</ParamField>
+
+## Response
+
+<ResponseField name="result" type="uint256">
+  Total staked amount in wei
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "eth_call",
+    "params": [{
+      "to": "0x0000000000000000000000000000000000001000",
+      "data": "0x635c8637"
+    }, "latest"],
+    "id": 1
+  }'
+```
+
+```javascript Web3.js
+const Web3 = require('web3');
+const web3 = new Web3('https://rpc.fene.app');
+
+// Method 1: Direct call
+const result = await web3.eth.call({
+  to: '0x0000000000000000000000000000000000001000',
+  data: '0x635c8637'
+}, 'latest');
+
+const totalStake = web3.eth.abi.decodeParameter('uint256', result);
+console.log('Total network stake:', web3.utils.fromWei(totalStake, 'ether'), 'FEN');
+
+// Method 2: Using contract (recommended)
+const abi = JSON.parse(await web3.getSystemContractABI());
+const contract = new web3.eth.Contract(
+  abi,
+  '0x0000000000000000000000000000000000001000'
+);
+
+const totalStake = await contract.methods.totalNetworkStake().call();
+console.log('Total network stake:', web3.utils.fromWei(totalStake, 'ether'), 'FEN');
+```
+
+```javascript ethers.js
+const { ethers } = require('ethers');
+
+const provider = new ethers.JsonRpcProvider('https://rpc.fene.app');
+
+const abiJson = await provider.send('fenine_getSystemContractABI', []);
+const abi = JSON.parse(abiJson);
+
+const contract = new ethers.Contract(
+  '0x0000000000000000000000000000000000001000',
+  abi,
+  provider
+);
+
+const totalStake = await contract.totalNetworkStake();
+console.log('Total network stake:', ethers.formatEther(totalStake), 'FEN');
+```
+
+```python Python
+from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider('https://rpc.fene.app'))
+
+# Direct call
+result = w3.eth.call({
+    'to': '0x0000000000000000000000000000000000001000',
+    'data': '0x635c8637'
+}, 'latest')
+
+total_stake = w3.codec.decode(['uint256'], result)[0]
+print(f'Total network stake: {Web3.from_wei(total_stake, "ether")} FEN')
+```
+</CodeGroup>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Network Health Dashboard">
+    ```javascript
+    async function getNetworkHealthMetrics() {
+      const totalStake = await contract.methods.totalNetworkStake().call();
+      const validators = await contract.methods.getActiveValidators().call();
+      const constants = await web3.getContractConstants();
+      
+      // Get circulating supply (example - adjust to your token)
+      const totalSupply = web3.utils.toWei('1000000000', 'ether'); // 1B tokens
+      
+      const stakeRatio = (BigInt(totalStake) * 100n) / BigInt(totalSupply);
+      const avgStakePerValidator = BigInt(totalStake) / BigInt(validators.length);
+      
+      return {
+        totalStaked: web3.utils.fromWei(totalStake, 'ether') + ' FEN',
+        activeValidators: validators.length,
+        maxValidators: constants.maxValidators,
+        networkUtilization: ((validators.length / constants.maxValidators) * 100).toFixed(1) + '%',
+        stakeRatio: stakeRatio.toString() + '%',
+        avgStakePerValidator: web3.utils.fromWei(avgStakePerValidator.toString(), 'ether') + ' FEN'
+      };
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Calculate Network Security">
+    ```javascript
+    async function calculateNetworkSecurity() {
+      const totalStake = await contract.methods.totalNetworkStake().call();
+      const validators = await contract.methods.getActiveValidators().call();
+      
+      // Get individual validator stakes
+      const validatorStakes = await Promise.all(
+        validators.map(async (vaAddr) => {
+          const info = await contract.methods.getValidatorInfo(vaAddr).call();
+          return BigInt(info.totalStake);
+        })
+      );
+      
+      // Sort descending
+      validatorStakes.sort((a, b) => a > b ? -1 : 1);
+      
+      // Calculate Nakamoto coefficient (how many validators needed for 33% attack)
+      let cumulativeStake = 0n;
+      let nakamotoCoefficient = 0;
+      const attackThreshold = BigInt(totalStake) * 33n / 100n;
+      
+      for (const stake of validatorStakes) {
+        cumulativeStake += stake;
+        nakamotoCoefficient++;
+        if (cumulativeStake >= attackThreshold) break;
+      }
+      
+      return {
+        totalStake: web3.utils.fromWei(totalStake, 'ether'),
+        validatorCount: validators.length,
+        nakamotoCoefficient,
+        securityLevel: nakamotoCoefficient >= 7 ? 'High' : nakamotoCoefficient >= 4 ? 'Medium' : 'Low',
+        largestValidatorPct: (Number(validatorStakes[0] * 100n / BigInt(totalStake))).toFixed(2) + '%'
+      };
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Track Staking Growth">
+    ```javascript
+    async function trackStakingGrowth() {
+      const currentStake = await contract.methods.totalNetworkStake().call();
+      
+      // Store in database or localStorage
+      const timestamp = Date.now();
+      const stakeEntry = {
+        timestamp,
+        totalStake: currentStake,
+        feneAmount: parseFloat(web3.utils.fromWei(currentStake, 'ether'))
+      };
+      
+      // Get historical data (from your storage)
+      const history = JSON.parse(localStorage.getItem('stakeHistory') || '[]');
+      history.push(stakeEntry);
+      
+      // Keep last 30 days
+      const thirtyDaysAgo = timestamp - (30 * 24 * 60 * 60 * 1000);
+      const recentHistory = history.filter(entry => entry.timestamp > thirtyDaysAgo);
+      
+      localStorage.setItem('stakeHistory', JSON.stringify(recentHistory));
+      
+      // Calculate growth
+      if (recentHistory.length > 1) {
+        const oldestStake = recentHistory[0].feneAmount;
+        const growth = ((stakeEntry.feneAmount - oldestStake) / oldestStake) * 100;
+        
+        console.log(`30-day growth: ${growth.toFixed(2)}%`);
+      }
+      
+      return recentHistory;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Calculate Staking Rewards Pool">
+    ```javascript
+    async function estimateRewardsPool() {
+      const totalStake = await contract.methods.totalNetworkStake().call();
+      
+      // Assuming 5% annual inflation distributed to stakers
+      const annualInflationRate = 0.05;
+      const totalSupply = web3.utils.toWei('1000000000', 'ether'); // 1B
+      
+      const annualRewards = BigInt(totalSupply) * BigInt(Math.floor(annualInflationRate * 100)) / 100n;
+      const dailyRewards = annualRewards / 365n;
+      const epochRewards = dailyRewards / 144n; // ~144 epochs per day at 200 blocks
+      
+      return {
+        totalStaked: web3.utils.fromWei(totalStake, 'ether'),
+        annualRewards: web3.utils.fromWei(annualRewards.toString(), 'ether'),
+        dailyRewards: web3.utils.fromWei(dailyRewards.toString(), 'ether'),
+        perEpochRewards: web3.utils.fromWei(epochRewards.toString(), 'ether'),
+        estimatedAPY: (annualInflationRate * 100).toFixed(2) + '%'
+      };
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Network Statistics
+
+Combine with other methods for comprehensive stats:
+
+```javascript
+async function getComprehensiveNetworkStats() {
+  // Get all data in parallel
+  const [totalStake, validators, currentBlock, constants] = await Promise.all([
+    contract.methods.totalNetworkStake().call(),
+    contract.methods.getActiveValidators().call(),
+    web3.eth.getBlockNumber(),
+    web3.getContractConstants()
+  ]);
+  
+  // Calculate epoch info
+  const currentEpoch = Math.floor(currentBlock / constants.blockEpoch);
+  const blocksUntilNextEpoch = constants.blockEpoch - (currentBlock % constants.blockEpoch);
+  
+  // Get validator details
+  const validatorDetails = await Promise.all(
+    validators.map(va => contract.methods.getValidatorInfo(va).call())
+  );
+  
+  const totalDelegators = validatorDetails.reduce(
+    (sum, info) => sum + parseInt(info.stakerCount), 0
+  );
+  
+  return {
+    network: {
+      totalStake: web3.utils.fromWei(totalStake, 'ether') + ' FEN',
+      activeValidators: validators.length,
+      maxValidators: constants.maxValidators,
+      totalDelegators
+    },
+    epoch: {
+      current: currentEpoch,
+      blocksUntilNext: blocksUntilNextEpoch,
+      estimatedTimeUntilNext: (blocksUntilNextEpoch * 3 / 60).toFixed(1) + ' minutes'
+    },
+    staking: {
+      minValidatorStake: web3.utils.fromWei(constants.minValidatorStake, 'ether') + ' FEN',
+      minDelegatorStake: web3.utils.fromWei(constants.minDelegatorStake, 'ether') + ' FEN',
+      avgStakePerValidator: web3.utils.fromWei(
+        (BigInt(totalStake) / BigInt(validators.length)).toString(), 
+        'ether'
+      ) + ' FEN'
+    }
+  };
+}
+```
+
+## Related Methods
+
+<CardGroup cols={3}>
+  <Card title="getActiveValidators" href="/api-reference/rpc/eth/get-active-validators">
+    Get list of active validators
+  </Card>
+  <Card title="getCurrentEpoch" href="/api-reference/rpc/eth/get-current-epoch">
+    Get current epoch number
+  </Card>
+  <Card title="getContractConstants" href="/api-reference/rpc/fenine/get-contract-constants">
+    Get network parameters
+  </Card>
+</CardGroup>

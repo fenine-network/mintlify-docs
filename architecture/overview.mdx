@@ -1,0 +1,379 @@
+---
+title: 'System Overview'
+description: 'Fenines Network architectural foundation and design principles'
+icon: 'diagram-project'
+---
+
+## Introduction
+
+Fenines Network represents a paradigm shift in blockchain consensus architecture through the implementation of **Finality Proof-of-Stake (FPoS)** - a novel consensus mechanism that transcends traditional Delegated Proof-of-Stake (DPoS) limitations by relocating validator governance from the node infrastructure layer to the smart contract execution layer.
+
+<Info>
+**Chain ID**: 5881  
+**Network**: Fenine Mainnet  
+**Genesis Hash**: `0x0cae1acdadd1c20755e0ebcedc2cd051c47e2d540f38ef06a6e9848d2c12a73b`
+</Info>
+
+## Architectural Philosophy
+
+The Fenines architecture is founded on three fundamental principles:
+
+### 1. Dual-Layer Separation of Concerns
+
+Fenines employs a rigorous separation between consensus validation and state governance:
+
+$$
+\mathcal{L}_{consensus} \perp \mathcal{L}_{governance}
+$$
+
+where:
+- $\mathcal{L}_{consensus}$ = Consensus engine layer (Fenine PoA)
+- $\mathcal{L}_{governance}$ = Smart contract layer (FenineSystem)
+- $\perp$ denotes architectural orthogonality
+
+This separation enables deterministic state transitions while maintaining Byzantine fault tolerance:
+
+$$
+\text{BFT}_{\text{threshold}} = \left\lfloor \frac{n}{2} \right\rfloor + 1
+$$
+
+where $n$ represents the active validator cardinality.
+
+### 2. Hierarchical Proximity Incentive Model
+
+Fenines implements an 8-level hierarchical reward distribution mechanism, mathematically expressed as:
+
+$$
+R_{\text{delegator}}(i) = R_{\text{base}} \cdot \left(1 - \sum_{k=1}^{\min(d_i, 8)} \alpha_k\right) \cdot (1 - \tau)
+$$
+
+where:
+- $R_{\text{base}}$ = Raw pending rewards before deductions
+- $d_i$ = Depth position of delegator $i$ in proximity chain
+- $\alpha_k$ = Proximity coefficient at level $k$ (default: $\sum \alpha_k \approx 0.30$)
+- $\tau$ = Tax rate (default: $\tau = 0.10$)
+
+The proximity distribution follows a Fibonacci-inspired decay pattern:
+
+| Level | $\alpha_k$ | Cumulative |
+|-------|-----------|------------|
+| 1     | 7%        | 7%         |
+| 2     | 5%        | 12%        |
+| 3     | 4%        | 16%        |
+| 4     | 3.5%      | 19.5%      |
+| 5     | 3%        | 22.5%      |
+| 6     | 2.5%      | 25%        |
+| 7     | 2.5%      | 27.5%      |
+| 8     | 2.5%      | 30%        |
+
+### 3. Epoch-Based State Synchronization
+
+Network state transitions occur deterministically at epoch boundaries defined by:
+
+$$
+\text{Epoch}(n) = \left\lfloor \frac{B_n}{E_{\text{period}}} \right\rfloor, \quad E_{\text{period}} = 200
+$$
+
+where $B_n$ denotes the block number at time $n$.
+
+At each epoch transition, three atomic system transactions execute sequentially:
+
+$$
+\mathcal{T}_{\text{epoch}} = \\{\mathtt{updateValidatorCandidates}(), \mathtt{distributeBlockReward}(\Omega), \mathtt{syncRewardState}()\\}
+$$
+
+where $\Omega$ represents the epoch reward pool.
+
+## System Components
+
+<CardGroup cols={3}>
+  <Card title="Consensus Layer" icon="gears" href="/architecture/consensus">
+    Fenine PoA engine with ECDSA signature verification
+  </Card>
+  <Card title="Execution Layer" icon="microchip" href="/architecture/execution">
+    EVM-compatible state machine with system contracts
+  </Card>
+  <Card title="FPoS Protocol" icon="network-wired" href="/architecture/fpos">
+    Validator lifecycle and staking economics
+  </Card>
+</CardGroup>
+
+## Network Parameters
+
+### Consensus Constants
+
+```latex
+\begin{align*}
+T_{\text{block}} &= 3 \text{ seconds} \\
+E_{\text{period}} &= 200 \text{ blocks} \\
+T_{\text{epoch}} &= 600 \text{ seconds} = 10 \text{ minutes} \\
+V_{\text{max}} &= 101 \text{ validators}
+\end{align*}
+```
+
+### Economic Parameters
+
+| Parameter | Symbol | Value | Units |
+|-----------|--------|-------|-------|
+| Block Reward | $R_{\text{block}}$ | 1.0 | FEN |
+| Epoch Reward | $R_{\text{epoch}}$ | 200.0 | FEN |
+| Min Validator Stake | $S_{\text{VA}}^{\text{min}}$ | 10,000 | FEN |
+| Min Delegator Stake | $S_{\text{DC}}^{\text{min}}$ | 1,000 | FEN |
+| Validator Commission | $\gamma$ | 0-100% | configurable |
+
+### System Contract Addresses
+
+<Note>
+These addresses are **genesis-embedded** and consensus-critical:
+</Note>
+
+| Contract | Address | Slot |
+|----------|---------|------|
+| FenineSystem | `0x0000...1000` | Core FPoS logic |
+| NFTPassport | `0x0000...1001` | Referral & whitelist |
+| TaxManager | `0x0000...1002` | Burn mechanism |
+| RewardManager | `0x0000...1003` | Dynamic rewards |
+| FeeRecorder | `0xFFFF...FFFF` | Fee accumulation |
+| DAO Treasury | `0xAfe5...1E80` | Undistributed rewards |
+
+## Thermodynamic Model
+
+Fenines can be analyzed through the lens of statistical mechanics, where the network represents a closed thermodynamic system:
+
+$$
+\Delta S_{\text{network}} = k_B \ln \Omega(\mathcal{V}, \mathcal{D})
+$$
+
+where:
+- $S_{\text{network}}$ = Network entropy (decentralization measure)
+- $k_B$ = Boltzmann constant (information-theoretic analog)
+- $\Omega(\mathcal{V}, \mathcal{D})$ = Microstate count (validator/delegator configurations)
+- $\mathcal{V}$ = Validator set
+- $\mathcal{D}$ = Delegator set
+
+### Nash Equilibrium in Staking
+
+The optimal validator selection strategy converges to a Nash equilibrium where rational delegators maximize expected returns:
+
+$$
+\mathbb{E}[R_i] = \sum_{v \in \mathcal{V}} P(\text{select } v) \cdot R_v(1 - \gamma_v)
+$$
+
+subject to the constraint:
+
+$$
+\arg\max_{v} \\left\\{ \frac{R_v \cdot (1-\gamma_v)}{S_v^{\text{total}}} \\right\\}
+$$
+
+where:
+- $R_v$ = Expected validator rewards
+- $\gamma_v$ = Validator commission rate
+- $S_v^{\text{total}}$ = Total stake delegated to validator $v$
+
+## Hardfork Implementation
+
+Fenines mainnet launches with **all Ethereum London hardfork features** activated at genesis (block 0):
+
+```solidity
+// All EIPs activated from genesis
+HomesteadBlock:      0
+EIP150Block:         0  // Gas cost changes
+EIP155Block:         0  // Replay protection
+EIP158Block:         0  // State trie clearing
+ByzantiumBlock:      0  // Metropolis part 1
+ConstantinopleBlock: 0  // Metropolis part 2
+PetersburgBlock:     0  // Constantinople fix
+IstanbulBlock:       0  // Gas repricing
+MuirGlacierBlock:    0  // Difficulty bomb delay
+BerlinBlock:         0  // Gas cost adjustments
+LondonBlock:         0  // EIP-1559 fee market
+ShanghaiTime:        0  // Beacon chain withdrawals (partial)
+```
+
+<Warning>
+**Cancun hardfork** (`CancunTime: nil`) is intentionally **not activated** to maintain network stability during initial deployment phase. Future activation will be coordinated via governance.
+</Warning>
+
+### EIP-1559 Fee Market
+
+Fenines implements Ethereum's base fee mechanism with dynamic block size adjustment:
+
+$$
+\text{BaseFee}_{n+1} = \text{BaseFee}_n \cdot \left(1 + \frac{1}{8} \cdot \frac{G_{\text{used}} - G_{\text{target}}}{G_{\text{target}}}\right)
+$$
+
+where:
+- $G_{\text{used}}$ = Gas used in block $n$
+- $G_{\text{target}}$ = Target gas per block (15M)
+- Base fee burned: Contributes to deflationary pressure
+
+## Security Model
+
+### Byzantine Fault Tolerance
+
+Fenines achieves BFT guarantees through deterministic signature verification:
+
+$$
+\text{Security}_{\text{prob}} = 1 - \left(\frac{f}{n}\right)^k
+$$
+
+where:
+- $f$ = Number of Byzantine validators
+- $n$ = Total validator count
+- $k$ = Confirmation depth
+
+For $n = 101$ and $f < 51$, security probability exceeds $1 - 10^{-6}$ at $k = 6$ confirmations.
+
+### Cryptographic Primitives
+
+| Primitive | Algorithm | Purpose |
+|-----------|-----------|---------|
+| Block Signing | ECDSA (secp256k1) | Validator authentication |
+| State Root | Keccak256 | Merkle tree hashing |
+| Transaction Signing | ECDSA + EIP-155 | Replay protection |
+| System TX | EIP-712 | Structured data signing |
+
+## Performance Characteristics
+
+### Throughput Analysis
+
+Theoretical maximum throughput:
+
+$$
+\text{TPS}_{\text{max}} = \frac{G_{\text{limit}}}{G_{\text{tx}}} \cdot \frac{1}{T_{\text{block}}}
+$$
+
+For standard transfers ($G_{\text{tx}} = 21,000$) and $G_{\text{limit}} = 30M$:
+
+$$
+\text{TPS}_{\text{max}} = \frac{30,000,000}{21,000} \cdot \frac{1}{3} \approx 476 \text{ TPS}
+$$
+
+### Finality Guarantees
+
+Probabilistic finality time:
+
+$$
+T_{\text{finality}} = k \cdot T_{\text{block}} = 6 \times 3 = 18 \text{ seconds}
+$$
+
+This provides $>99.9999\%$ finality guarantee under standard network conditions.
+
+## Ecosystem Development Opportunities
+
+<AccordionGroup>
+  <Accordion title="DeFi Infrastructure">
+    **Automated Market Makers (AMM)**
+    - Uniswap V2/V3 forks optimized for 3-second blocks
+    - Concentrated liquidity with proximity-aware routing
+    
+    **Lending Protocols**
+    - Over-collateralized lending (Aave/Compound model)
+    - Staking derivative tokens (sFENE) as collateral
+    
+    **Derivatives**
+    - Perpetual futures on validator performance metrics
+    - Options on proximity positions
+  </Accordion>
+
+  <Accordion title="NFT & Gaming">
+    **NFT Marketplaces**
+    - Low-latency trading enabled by 3-second finality
+    - Proximity-based royalty distribution
+    
+    **GameFi**
+    - On-chain game state with sub-second responsiveness
+    - Play-to-earn integrated with staking rewards
+    
+    **Metaverse Integration**
+    - Virtual land ownership via NFTPassport
+    - In-world economies backed by FEN
+  </Accordion>
+
+  <Accordion title="Infrastructure Services">
+    **Oracles**
+    - Chainlink-compatible data feeds
+    - Proximity-weighted oracle reputation system
+    
+    **Cross-Chain Bridges**
+    - Ethereum ↔ Fenines asset bridge
+    - BSC/Polygon/Arbitrum interoperability
+    
+    **Developer Tools**
+    - Hardhat/Foundry compatibility
+    - Subgraph indexing for FPoS events
+  </Accordion>
+
+  <Accordion title="Institutional Products">
+    **Staking-as-a-Service**
+    - Managed validator nodes
+    - Non-custodial delegation platforms
+    
+    **Analytics Platforms**
+    - Real-time validator performance dashboards
+    - Proximity network visualization
+    
+    **Compliance Tools**
+    - On-chain KYC via NFTPassport
+    - Regulatory reporting for institutional stakers
+  </Accordion>
+</AccordionGroup>
+
+## Network Growth Projections
+
+### Metcalfe's Law Application
+
+Network value growth modeled by:
+
+$$
+V_{\text{network}} \propto n^2 \cdot \bar{S}_{\text{delegator}}
+$$
+
+where:
+- $n$ = Number of active participants (validators + delegators)
+- $\bar{S}_{\text{delegator}}$ = Average stake per delegator
+
+### Staking APY Dynamics
+
+Equilibrium APY adjusts based on total network stake:
+
+$$
+\text{APY} = \frac{R_{\text{annual}}}{S_{\text{total}}} \times 100\%
+$$
+
+where $R_{\text{annual}}$ is determined by:
+
+$$
+R_{\text{annual}} = R_{\text{block}} \times \frac{365.25 \times 24 \times 3600}{T_{\text{block}}} \approx 10,512,000 \text{ FEN/year}
+$$
+
+For $S_{\text{total}} = 100M$ FEN:
+
+$$
+\text{APY} \approx 10.5\%
+$$
+
+## Conclusion
+
+Fenines Network establishes a mathematically rigorous, thermodynamically stable consensus architecture that enables:
+
+1. **Scalability**: 476 TPS theoretical maximum, 18-second finality
+2. **Decentralization**: BFT with $n \leq 101$ validators, proximity-driven participation
+3. **Economic Sustainability**: Deflationary tokenomics via EIP-1559 burn + hierarchical incentives
+
+The FPoS mechanism positions Fenines as a **next-generation Layer 1** optimized for high-throughput DeFi, GameFi, and institutional adoption.
+
+<CardGroup cols={2}>
+  <Card title="Consensus Mechanism" icon="gear" href="/architecture/consensus">
+    Deep dive into Fenine PoA engine
+  </Card>
+  <Card title="Execution Layer" icon="server" href="/architecture/execution">
+    EVM state machine and system contracts
+  </Card>
+  <Card title="FPoS Economics" icon="chart-line" href="/architecture/fpos">
+    Staking, rewards, and game theory
+  </Card>
+  <Card title="Security Analysis" icon="shield" href="/architecture/security">
+    Cryptographic guarantees and attack vectors
+  </Card>
+</CardGroup>

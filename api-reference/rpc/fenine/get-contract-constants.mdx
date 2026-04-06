@@ -1,0 +1,202 @@
+---
+title: 'fenine_getContractConstants'
+description: 'Get important contract constants and configuration'
+api: 'GET fenine_getContractConstants'
+---
+
+## Overview
+
+Returns important contract constants and configuration values from the FenineSystem contract. Useful for understanding network parameters without querying the contract directly.
+
+## Parameters
+
+None
+
+## Response
+
+<ResponseField name="systemContractAddress" type="string">
+  FenineSystem contract address (always `0x0000000000000000000000000000000000001000`)
+</ResponseField>
+
+<ResponseField name="blockEpoch" type="number">
+  Number of blocks per epoch (200)
+</ResponseField>
+
+<ResponseField name="maxValidators" type="number">
+  Maximum number of active validators (101)
+</ResponseField>
+
+<ResponseField name="minValidatorStake" type="string">
+  Minimum validator self-stake in wei (10,000 FEN = "10000000000000000000000")
+</ResponseField>
+
+<ResponseField name="minDelegatorStake" type="string">
+  Minimum delegator stake in wei (1,000 FEN = "1000000000000000000000")
+</ResponseField>
+
+<ResponseField name="validatorLockPeriod" type="number">
+  Validator unstake lock period in blocks (50,000 ≈ 3.5 days)
+</ResponseField>
+
+<ResponseField name="delegatorLockPeriod" type="number">
+  Delegator unstake lock period in blocks (25,000 ≈ 1.75 days)
+</ResponseField>
+
+<ResponseField name="defaultCommission" type="number">
+  Default commission rate in basis points (500 = 5%)
+</ResponseField>
+
+<ResponseField name="maxCommission" type="number">
+  Maximum commission rate in basis points (1000 = 10%)
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "fenine_getContractConstants",
+    "params": [],
+    "id": 1
+  }'
+```
+
+```javascript JavaScript
+const Web3 = require('web3');
+const web3 = new Web3('https://rpc.fene.app');
+
+web3.extend({
+  methods: [{
+    name: 'getContractConstants',
+    call: 'fenine_getContractConstants',
+    params: 0
+  }]
+});
+
+const constants = await web3.getContractConstants();
+
+console.log('Network Configuration:');
+console.log('Epoch Length:', constants.blockEpoch, 'blocks');
+console.log('Max Validators:', constants.maxValidators);
+console.log('Min VA Stake:', web3.utils.fromWei(constants.minValidatorStake, 'ether'), 'FEN');
+console.log('Min DC Stake:', web3.utils.fromWei(constants.minDelegatorStake, 'ether'), 'FEN');
+console.log('VA Lock Period:', constants.validatorLockPeriod, 'blocks');
+console.log('Default Commission:', constants.defaultCommission / 100, '%');
+```
+
+```python Python
+from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider('https://rpc.fene.app'))
+
+result = w3.provider.make_request(
+    'fenine_getContractConstants',
+    []
+)
+
+constants = result['result']
+
+print('Network Configuration:')
+print(f"Epoch Length: {constants['blockEpoch']} blocks")
+print(f"Max Validators: {constants['maxValidators']}")
+print(f"Min VA Stake: {Web3.from_wei(int(constants['minValidatorStake']), 'ether')} FEN")
+print(f"Default Commission: {constants['defaultCommission'] / 100}%")
+```
+</CodeGroup>
+
+## Response Example
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "systemContractAddress": "0x0000000000000000000000000000000000001000",
+    "blockEpoch": 200,
+    "maxValidators": 101,
+    "minValidatorStake": "10000000000000000000000",
+    "minDelegatorStake": "1000000000000000000000",
+    "validatorLockPeriod": 50000,
+    "delegatorLockPeriod": 25000,
+    "defaultCommission": 500,
+    "maxCommission": 1000
+  }
+}
+```
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Validate User Input">
+    ```javascript
+    const constants = await web3.getContractConstants();
+    const stakeAmount = web3.utils.toWei('5000', 'ether');
+    
+    if (BigInt(stakeAmount) < BigInt(constants.minValidatorStake)) {
+      throw new Error(`Minimum stake is ${web3.utils.fromWei(constants.minValidatorStake, 'ether')} FEN`);
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Calculate Epoch Times">
+    ```javascript
+    const constants = await web3.getContractConstants();
+    const currentBlock = await web3.eth.getBlockNumber();
+    const currentEpoch = Math.floor(currentBlock / constants.blockEpoch);
+    const blocksUntilNextEpoch = constants.blockEpoch - (currentBlock % constants.blockEpoch);
+    const estimatedSeconds = blocksUntilNextEpoch * 3; // 3s block time
+    
+    console.log(`Current epoch: ${currentEpoch}`);
+    console.log(`Next epoch in ~${Math.floor(estimatedSeconds / 60)} minutes`);
+    ```
+  </Accordion>
+
+  <Accordion title="Display Lock Period Info">
+    ```javascript
+    const constants = await web3.getContractConstants();
+    const lockPeriodDays = (constants.validatorLockPeriod * 3) / (60 * 60 * 24);
+    
+    console.log(`Unstaking lock period: ~${lockPeriodDays.toFixed(1)} days`);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Helper Functions
+
+```javascript
+// Convert basis points to percentage
+function bpsToPercent(bps) {
+  return bps / 100;
+}
+
+// Convert blocks to approximate time
+function blocksToTime(blocks, blockTime = 3) {
+  const seconds = blocks * blockTime;
+  const days = seconds / (60 * 60 * 24);
+  return {
+    seconds,
+    minutes: seconds / 60,
+    hours: seconds / 3600,
+    days
+  };
+}
+
+// Usage
+const constants = await web3.getContractConstants();
+console.log('Default commission:', bpsToPercent(constants.defaultCommission), '%');
+console.log('Lock period:', blocksToTime(constants.validatorLockPeriod).days, 'days');
+```
+
+## Related Methods
+
+<CardGroup cols={2}>
+  <Card title="fenine_getSystemContractAddress" href="/api-reference/rpc/fenine/get-system-contract-address">
+    Get System Contract address
+  </Card>
+  <Card title="getCurrentEpoch" href="/api-reference/rpc/eth/get-current-epoch">
+    Get current epoch number
+  </Card>
+</CardGroup>

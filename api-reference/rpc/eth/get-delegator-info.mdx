@@ -1,0 +1,319 @@
+---
+title: 'getDelegatorInfo'
+description: "Get information about a delegator's stake with a specific validator"
+api: 'POST eth_call'
+---
+
+## Overview
+
+Queries the FenineSystem contract to get detailed information about a delegator's stake with a specific validator, including stake amount, pending rewards, and position in the proximity chain.
+
+## Contract Call Details
+
+<ParamField path="to" type="address" required>
+  `0x0000000000000000000000000000000000001000` (FenineSystem)
+</ParamField>
+
+<ParamField path="data" type="bytes" required>
+  Function selector: `0xa993683f` + ABI-encoded (delegator address, validator address)
+</ParamField>
+
+<ParamField path="delegator" type="address" required>
+  The delegator address to query
+</ParamField>
+
+<ParamField path="validator" type="address" required>
+  The validator address
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="uint8">
+  Delegator status:
+  - `0`: NOT_EXIST (never staked)
+  - `1`: ACTIVE (currently staking)
+  - `2`: UNSTAKING (withdrawal in progress)
+</ResponseField>
+
+<ResponseField name="stakeAmount" type="uint256">
+  Delegator's stake amount in wei
+</ResponseField>
+
+<ResponseField name="pendingRewards" type="uint256">
+  Accumulated pending rewards in wei
+</ResponseField>
+
+<ResponseField name="joinedAt" type="uint256">
+  Block number when delegator first staked
+</ResponseField>
+
+<ResponseField name="stakerIndex" type="uint256">
+  Position in validator's proximity chain (0-based)
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+```bash cURL
+# Replace addresses (without 0x prefix)
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "eth_call",
+    "params": [{
+      "to": "0x0000000000000000000000000000000000001000",
+      "data": "0xa993683f000000000000000000000000<DELEGATOR_ADDRESS>000000000000000000000000<VALIDATOR_ADDRESS>"
+    }, "latest"],
+    "id": 1
+  }'
+```
+
+```javascript Web3.js
+const Web3 = require('web3');
+const web3 = new Web3('https://rpc.fene.app');
+
+const delegatorAddress = '0x1111111111111111111111111111111111111111';
+const validatorAddress = '0x2222222222222222222222222222222222222222';
+
+// Using contract instance
+const abi = JSON.parse(await web3.getSystemContractABI());
+const contract = new web3.eth.Contract(
+  abi,
+  '0x0000000000000000000000000000000000001000'
+);
+
+const info = await contract.methods.getDelegatorInfo(
+  delegatorAddress,
+  validatorAddress
+).call();
+
+const DC_STATUS = ['NOT_EXIST', 'ACTIVE', 'UNSTAKING'];
+
+console.log({
+  status: DC_STATUS[info.status],
+  stakeAmount: web3.utils.fromWei(info.stakeAmount, 'ether') + ' FEN',
+  pendingRewards: web3.utils.fromWei(info.pendingRewards, 'ether') + ' FEN',
+  joinedAt: `Block #${info.joinedAt}`,
+  proximityPosition: info.stakerIndex,
+  isActive: info.status == 1
+});
+```
+
+```javascript ethers.js
+const { ethers } = require('ethers');
+
+const provider = new ethers.JsonRpcProvider('https://rpc.fene.app');
+
+const delegatorAddress = '0x1111111111111111111111111111111111111111';
+const validatorAddress = '0x2222222222222222222222222222222222222222';
+
+const abiJson = await provider.send('fenine_getSystemContractABI', []);
+const abi = JSON.parse(abiJson);
+
+const contract = new ethers.Contract(
+  '0x0000000000000000000000000000000000001000',
+  abi,
+  provider
+);
+
+const [status, stakeAmount, pendingRewards, joinedAt, stakerIndex] = 
+  await contract.getDelegatorInfo(delegatorAddress, validatorAddress);
+
+const DC_STATUS = ['NOT_EXIST', 'ACTIVE', 'UNSTAKING'];
+
+console.log({
+  status: DC_STATUS[status],
+  stakeAmount: ethers.formatEther(stakeAmount) + ' FEN',
+  pendingRewards: ethers.formatEther(pendingRewards) + ' FEN',
+  joinedAt: `Block #${joinedAt}`,
+  proximityPosition: Number(stakerIndex)
+});
+```
+
+```python Python
+from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider('https://rpc.fene.app'))
+
+delegator_address = '0x1111111111111111111111111111111111111111'
+validator_address = '0x2222222222222222222222222222222222222222'
+
+# Using contract (assuming you have ABI)
+system_contract = w3.eth.contract(
+    address='0x0000000000000000000000000000000000001000',
+    abi=system_abi
+)
+
+result = system_contract.functions.getDelegatorInfo(
+    delegator_address,
+    validator_address
+).call()
+
+status, stake_amount, pending_rewards, joined_at, staker_index = result
+
+DC_STATUS = ['NOT_EXIST', 'ACTIVE', 'UNSTAKING']
+
+print(f'Status: {DC_STATUS[status]}')
+print(f'Stake: {Web3.from_wei(stake_amount, "ether")} FEN')
+print(f'Pending: {Web3.from_wei(pending_rewards, "ether")} FEN')
+print(f'Joined at block: {joined_at}')
+print(f'Proximity position: {staker_index}')
+```
+</CodeGroup>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Delegator Dashboard">
+    ```javascript
+    async function getDelegatorDashboard(delegatorAddress, validatorAddress) {
+      const info = await contract.methods.getDelegatorInfo(
+        delegatorAddress,
+        validatorAddress
+      ).call();
+      
+      if (info.status == 0) {
+        return { isStaked: false };
+      }
+      
+      // Get validator info for context
+      const vaInfo = await contract.methods.getValidatorInfo(validatorAddress).call();
+      
+      // Calculate stake age
+      const currentBlock = await web3.eth.getBlockNumber();
+      const stakeAge = currentBlock - info.joinedAt;
+      const stakeDays = (stakeAge * 3) / (60 * 60 * 24); // 3s blocks
+      
+      // Get estimated rewards
+      const estimate = await contract.methods.getEstimatedDelegatorReward(
+        delegatorAddress,
+        validatorAddress
+      ).call();
+      
+      return {
+        isStaked: true,
+        status: ['NOT_EXIST', 'ACTIVE', 'UNSTAKING'][info.status],
+        stake: web3.utils.fromWei(info.stakeAmount, 'ether'),
+        pendingRewards: web3.utils.fromWei(info.pendingRewards, 'ether'),
+        estimatedAfterTax: web3.utils.fromWei(estimate.afterTax, 'ether'),
+        proximityPosition: parseInt(info.stakerIndex),
+        stakeDays: stakeDays.toFixed(1),
+        validatorCommission: (vaInfo.commissionRate / 100) + '%'
+      };
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Check Unstake Availability">
+    ```javascript
+    async function canWithdraw(delegatorAddress, validatorAddress) {
+      const info = await contract.methods.getDelegatorInfo(
+        delegatorAddress,
+        validatorAddress
+      ).call();
+      
+      if (info.status != 2) { // Not UNSTAKING
+        return {
+          canWithdraw: false,
+          reason: info.status == 0 ? 'Never staked' : 'Not unstaking yet'
+        };
+      }
+      
+      const currentBlock = await web3.eth.getBlockNumber();
+      const constants = await web3.getContractConstants();
+      const unlockBlock = parseInt(info.unstakeBlock) + parseInt(constants.delegatorLockPeriod);
+      
+      if (currentBlock >= unlockBlock) {
+        return {
+          canWithdraw: true,
+          amount: web3.utils.fromWei(info.stakeAmount, 'ether')
+        };
+      }
+      
+      const blocksLeft = unlockBlock - currentBlock;
+      const hoursLeft = (blocksLeft * 3) / 3600;
+      
+      return {
+        canWithdraw: false,
+        reason: `Lock period active`,
+        blocksRemaining: blocksLeft,
+        hoursRemaining: hoursLeft.toFixed(1)
+      };
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Analyze Staking History">
+    ```javascript
+    async function getStakingHistory(delegatorAddress) {
+      // Get all active validators
+      const validators = await contract.methods.getActiveValidators().call();
+      
+      const stakingHistory = [];
+      
+      for (const vaAddr of validators) {
+        const info = await contract.methods.getDelegatorInfo(
+          delegatorAddress,
+          vaAddr
+        ).call();
+        
+        if (info.status != 0) { // Has staked
+          const vaInfo = await contract.methods.getValidatorInfo(vaAddr).call();
+          
+          stakingHistory.push({
+            validator: vaAddr,
+            status: ['NOT_EXIST', 'ACTIVE', 'UNSTAKING'][info.status],
+            stake: web3.utils.fromWei(info.stakeAmount, 'ether'),
+            pending: web3.utils.fromWei(info.pendingRewards, 'ether'),
+            joinedAt: info.joinedAt,
+            position: info.stakerIndex
+          });
+        }
+      }
+      
+      return stakingHistory;
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Proximity Position
+
+The `stakerIndex` field indicates your position in the validator's proximity chain:
+
+```javascript
+// Example
+const info = await contract.methods.getDelegatorInfo(myAddress, validatorAddress).call();
+const position = parseInt(info.stakerIndex);
+
+console.log(`You are at position ${position}`);
+console.log(`You receive proximity rewards from ${Math.min(position + 1, 8)} delegators below you`);
+console.log(`You pay proximity rewards to ${Math.min(position, 8)} delegators above you`);
+```
+
+## Status Lifecycle
+
+```
+NOT_EXIST (0)
+    ↓ stakeToValidator()
+ACTIVE (1)
+    ↓ unstakeDelegator()
+UNSTAKING (2)
+    ↓ withdrawDelegatorStake()
+NOT_EXIST (0) ← Can re-stake
+```
+
+## Related Methods
+
+<CardGroup cols={3}>
+  <Card title="getEstimatedDelegatorReward" href="/api-reference/rpc/eth/get-estimated-delegator-reward">
+    Preview rewards before claiming
+  </Card>
+  <Card title="getValidatorStakers" href="/api-reference/rpc/eth/get-validator-stakers">
+    See all delegators (proximity order)
+  </Card>
+  <Card title="getValidatorInfo" href="/api-reference/rpc/eth/get-validator-info">
+    Get validator details
+  </Card>
+</CardGroup>

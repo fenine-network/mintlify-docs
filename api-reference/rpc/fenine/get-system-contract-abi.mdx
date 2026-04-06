@@ -1,0 +1,157 @@
+---
+title: 'fenine_getSystemContractABI'
+description: 'Get the ABI of FenineSystem contract'
+api: 'GET fenine_getSystemContractABI'
+---
+
+## Overview
+
+Returns the complete ABI (Application Binary Interface) of the FenineSystem contract. Use this to create contract instances in your Web3 library.
+
+## Parameters
+
+None
+
+## Response
+
+<ResponseField name="result" type="string">
+  JSON string containing the complete contract ABI
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "fenine_getSystemContractABI",
+    "params": [],
+    "id": 1
+  }'
+```
+
+```javascript Web3.js
+const Web3 = require('web3');
+const web3 = new Web3('https://rpc.fene.app');
+
+// Get ABI
+web3.extend({
+  methods: [{
+    name: 'getSystemContractABI',
+    call: 'fenine_getSystemContractABI',
+    params: 0
+  }]
+});
+
+const abiJson = await web3.getSystemContractABI();
+const abi = JSON.parse(abiJson);
+
+// Create contract instance
+const systemContract = new web3.eth.Contract(
+  abi,
+  '0x0000000000000000000000000000000000001000'
+);
+
+// Use it
+const validators = await systemContract.methods.getActiveValidators().call();
+console.log('Active validators:', validators);
+```
+
+```javascript ethers.js
+const { ethers } = require('ethers');
+
+const provider = new ethers.JsonRpcProvider('https://rpc.fene.app');
+
+// Get ABI
+const abiJson = await provider.send('fenine_getSystemContractABI', []);
+const abi = JSON.parse(abiJson);
+
+// Create contract instance
+const systemContract = new ethers.Contract(
+  '0x0000000000000000000000000000000000001000',
+  abi,
+  provider
+);
+
+// Use it
+const validators = await systemContract.getActiveValidators();
+console.log('Active validators:', validators);
+```
+</CodeGroup>
+
+## Usage Pattern
+
+<Steps>
+  <Step title="Get ABI Once">
+    Fetch the ABI once and cache it in your application
+    
+    ```javascript
+    const abi = JSON.parse(await provider.send('fenine_getSystemContractABI', []));
+    ```
+  </Step>
+
+  <Step title="Create Contract Instance">
+    Use the ABI to create a contract instance
+    
+    ```javascript
+    const contract = new web3.eth.Contract(abi, SYSTEM_CONTRACT_ADDRESS);
+    ```
+  </Step>
+
+  <Step title="Call Contract Methods">
+    Now you can call any contract method
+    
+    ```javascript
+    const info = await contract.methods.getValidatorInfo(address).call();
+    ```
+  </Step>
+</Steps>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Cache the ABI">
+    The ABI is static and won't change. Fetch it once during initialization and cache it.
+    
+    ```javascript
+    // Bad: Fetching every time
+    async function getValidators() {
+      const abi = JSON.parse(await web3.getSystemContractABI());
+      const contract = new web3.eth.Contract(abi, address);
+      return await contract.methods.getActiveValidators().call();
+    }
+    
+    // Good: Cache and reuse
+    const ABI_CACHE = JSON.parse(await web3.getSystemContractABI());
+    const systemContract = new web3.eth.Contract(ABI_CACHE, address);
+    
+    async function getValidators() {
+      return await systemContract.methods.getActiveValidators().call();
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Version in Production">
+    In production, consider hardcoding the ABI or loading from a file to avoid RPC calls.
+  </Accordion>
+</AccordionGroup>
+
+<Tip>
+This ABI includes all functions: user functions (stake, claim), view functions (getValidatorInfo), and admin functions. Your wallet will only be able to call functions you have permission for.
+</Tip>
+
+## Related Methods
+
+<CardGroup cols={2}>
+  <Card title="fenine_getNFTPassportABI" href="/api-reference/rpc/fenine/get-nft-passport-abi">
+    Get NFT Passport contract ABI
+  </Card>
+  <Card title="fenine_getTaxManagerABI" href="/api-reference/rpc/fenine/get-tax-manager-abi">
+    Get Tax Manager contract ABI
+  </Card>
+  <Card title="fenine_getSystemContractAddress" href="/api-reference/rpc/fenine/get-system-contract-address">
+    Get System Contract address
+  </Card>
+</CardGroup>

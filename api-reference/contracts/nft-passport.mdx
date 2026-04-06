@@ -1,0 +1,817 @@
+---
+title: 'NFT Passport Contract'
+description: 'Whitelist and referral system for validator-delegator relationships'
+icon: 'passport'
+---
+
+## Overview
+
+The NFTPassport contract manages the whitelist system for Fenines Network. Validators create referral keys to invite delegators, establishing a permissioned staking system with built-in attribution tracking.
+
+<Info>
+**Contract Address**: `0x0000000000000000000000000000000000001001` (System Contract)
+</Info>
+
+## Core Concepts
+
+<CardGroup cols={2}>
+  <Card title="Referral Keys" icon="key">
+    Unique cryptographic keys created by validators to invite delegators
+  </Card>
+  <Card title="Whitelist" icon="shield-check">
+    Delegator must be whitelisted to a validator before staking
+  </Card>
+  <Card title="Multi-Use Codes" icon="ticket">
+    Optional promo-code style keys with usage limits
+  </Card>
+  <Card title="Direct Invites" icon="user-plus">
+    Validators can directly whitelist addresses without keys
+  </Card>
+</CardGroup>
+
+## Workflow
+
+<Steps>
+  <Step title="Validator Creates Key">
+    Validator generates a referral key (one-time or multi-use)
+    
+    ```javascript
+    const key = web3.utils.keccak256('my-unique-referral-code');
+    await nftPassport.methods.createReferralKey(key).send({ from: validator });
+    ```
+  </Step>
+
+  <Step title="Delegator Uses Key">
+    Delegator uses the key to get whitelisted
+    
+    ```javascript
+    await nftPassport.methods.useReferralKey(key).send({ from: delegator });
+    ```
+  </Step>
+
+  <Step title="Delegator Can Stake">
+    Now delegator is whitelisted and can stake to that validator
+    
+    ```javascript
+    await systemContract.methods.stakeToValidator(validator).send({
+      from: delegator,
+      value: stakeAmount
+    });
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Validator Functions
+
+### createReferralKey
+
+Create a one-time use referral key.
+
+```solidity
+function createReferralKey(bytes32 key) external
+```
+
+<ParamField path="key" type="bytes32" required>
+  Unique key hash. Generate using `keccak256` of a random string or nonce.
+</ParamField>
+
+<CodeGroup>
+```javascript Generate & Create
+// Generate key from random string
+const randomCode = 'my-referral-' + Date.now() + Math.random();
+const key = web3.utils.keccak256(randomCode);
+
+await nftPassport.methods.createReferralKey(key).send({
+  from: validatorAddress
+});
+
+// Share the code (NOT the hash) with delegator
+console.log('Share this code:', randomCode);
+```
+
+```javascript Using Helper
+// Use built-in hash function
+const code = 'SUMMER2024PROMO';
+const key = await nftPassport.methods.hashReferralCode(code).call();
+
+await nftPassport.methods.createReferralKey(key).send({
+  from: validatorAddress
+});
+```
+</CodeGroup>
+
+**Effects:**
+- Creates key with `isActive = true`
+- Key can be used once
+- Added to validator's key list
+- Increments `validatorActiveKeyCount`
+
+---
+
+### createReferralKeyWithExpiry
+
+Create a one-time key with expiration.
+
+```solidity
+function createReferralKeyWithExpiry(
+    bytes32 key,
+    uint256 expiresInBlocks
+) external
+```
+
+<ParamField path="expiresInBlocks" type="uint256" required>
+  Number of blocks until expiration (e.g., 28800 = ~24 hours at 3s blocks)
+</ParamField>
+
+<CodeGroup>
+```javascript
+const key = web3.utils.keccak256('limited-time-offer');
+const blocksPerDay = 28800; // ~24 hours
+
+await nftPassport.methods.createReferralKeyWithExpiry(
+  key,
+  blocksPerDay * 7 // Expires in 7 days
+).send({ from: validatorAddress });
+```
+</CodeGroup>
+
+---
+
+### createMultiUseKey
+
+Create a multi-use referral code (like a promo code).
+
+```solidity
+function createMultiUseKey(
+    bytes32 key,
+    uint256 maxUsage,
+    uint256 expiresInBlocks
+) external
+```
+
+<ParamField path="maxUsage" type="uint256" required>
+  Maximum number of uses (0 = unlimited)
+</ParamField>
+
+<ParamField path="expiresInBlocks" type="uint256">
+  Blocks until expiration (0 = never expires)
+</ParamField>
+
+<CodeGroup>
+```javascript Multi-Use Code
+const promoCode = 'FENINE100';
+const key = web3.utils.keccak256(promoCode);
+
+await nftPassport.methods.createMultiUseKey(
+  key,
+  100,    // Max 100 uses
+  0       // Never expires
+).send({ from: validatorAddress });
+
+// Share the promo code
+console.log('Promo code:', promoCode);
+```
+
+```javascript Limited Campaign
+const campaignKey = web3.utils.keccak256('Q1-2024-CAMPAIGN');
+
+await nftPassport.methods.createMultiUseKey(
+  campaignKey,
+  50,              // 50 uses
+  28800 * 30       // 30 days
+).send({ from: validatorAddress });
+```
+</CodeGroup>
+
+**Use Cases:**
+- Public promo codes for marketing campaigns
+- Partner referral programs
+- Community growth initiatives
+- Event-specific invitations
+
+---
+
+### revokeReferralKey
+
+Deactivate a referral key.
+
+```solidity
+function revokeReferralKey(bytes32 key) external
+```
+
+<CodeGroup>
+```javascript
+const key = web3.utils.keccak256('compromised-key');
+
+await nftPassport.methods.revokeReferralKey(key).send({
+  from: validatorAddress
+});
+```
+</CodeGroup>
+
+**Effects:**
+- Sets `isActive = false`
+- Key can no longer be used
+- Decrements `validatorActiveKeyCount`
+- Does NOT affect already-whitelisted users
+
+---
+
+### directInvite
+
+Directly whitelist a delegator without requiring a key.
+
+```solidity
+function directInvite(address delegator) external
+```
+
+<CodeGroup>
+```javascript
+await nftPassport.methods.directInvite(delegatorAddress).send({
+  from: validatorAddress
+});
+```
+</CodeGroup>
+
+**Requirements:**
+- Delegator cannot be self (validator)
+- Delegator not already whitelisted
+- Contract not paused
+
+**Use Cases:**
+- VIP delegators
+- Partnership agreements
+- Manual whitelist management
+- Testing/development
+
+---
+
+### batchDirectInvite
+
+Whitelist multiple delegators at once.
+
+```solidity
+function batchDirectInvite(address[] calldata delegators) external
+```
+
+<CodeGroup>
+```javascript
+const delegators = [
+  '0x1111...',
+  '0x2222...',
+  '0x3333...'
+];
+
+await nftPassport.methods.batchDirectInvite(delegators).send({
+  from: validatorAddress,
+  gas: 500000 // Increase gas for batch operation
+});
+```
+</CodeGroup>
+
+<Tip>
+Gas-efficient for whitelisting many addresses. Automatically skips invalid/duplicate addresses.
+</Tip>
+
+---
+
+### revokeWhitelist
+
+Remove a delegator from whitelist.
+
+```solidity
+function revokeWhitelist(address delegator) external
+```
+
+<CodeGroup>
+```javascript
+await nftPassport.methods.revokeWhitelist(delegatorAddress).send({
+  from: validatorAddress
+});
+```
+</CodeGroup>
+
+<Warning>
+This does NOT automatically unstake the delegator. They must unstake manually from FenineSystem.
+</Warning>
+
+---
+
+## Delegator Functions
+
+### useReferralKey
+
+Use a referral key to get whitelisted.
+
+```solidity
+function useReferralKey(bytes32 key) external
+```
+
+<CodeGroup>
+```javascript Delegator Side
+// Validator shared the code (not the hash)
+const code = 'my-referral-code-from-validator';
+
+// Hash it
+const key = web3.utils.keccak256(code);
+
+// Use it
+await nftPassport.methods.useReferralKey(key).send({
+  from: delegatorAddress
+});
+
+// Now can stake
+const systemContract = new web3.eth.Contract(systemABI, systemAddress);
+await systemContract.methods.stakeToValidator(validatorAddress).send({
+  from: delegatorAddress,
+  value: web3.utils.toWei('1000', 'ether')
+});
+```
+
+```javascript Check Before Using
+// Optional: Check if key is valid first
+const info = await nftPassport.methods.getKeyInfo(key).call();
+
+if (info.isUsable) {
+  await nftPassport.methods.useReferralKey(key).send({
+    from: delegatorAddress
+  });
+} else {
+  console.log('Key is not usable:', {
+    expired: info.isExpired,
+    active: info.isActive,
+    usageCount: info.usageCount,
+    maxUsage: info.maxUsage
+  });
+}
+```
+</CodeGroup>
+
+**Requirements:**
+- Key must exist
+- Key must be active
+- Key not expired (if expiry set)
+- Not already whitelisted to this validator
+- Usage limit not reached (for multi-use keys)
+
+**Effects:**
+- Increments `usageCount`
+- One-time keys: deactivated after use
+- Delegator added to whitelist
+- Sets `delegatorValidator[delegator] = validator`
+
+---
+
+### exitFromValidator
+
+Self-remove from validator's whitelist.
+
+```solidity
+function exitFromValidator(address validator) external
+```
+
+<CodeGroup>
+```javascript
+// Delegator unstakes first (from FenineSystem)
+await systemContract.methods.unstakeDelegator(validatorAddress).send({
+  from: delegatorAddress
+});
+
+// Then exit whitelist
+await nftPassport.methods.exitFromValidator(validatorAddress).send({
+  from: delegatorAddress
+});
+```
+</CodeGroup>
+
+<Note>
+Best practice: Unstake from FenineSystem first, then exit whitelist. Cannot re-enter without new referral key.
+</Note>
+
+---
+
+## View Functions
+
+### isWhitelisted
+
+Check if a delegator is whitelisted to a validator.
+
+```solidity
+function isWhitelisted(address delegator, address validator) 
+    external view returns (bool)
+```
+
+<CodeGroup>
+```javascript
+const canStake = await nftPassport.methods.isWhitelisted(
+  delegatorAddress,
+  validatorAddress
+).call();
+
+if (canStake) {
+  console.log('✓ Can stake to this validator');
+} else {
+  console.log('✗ Need referral key first');
+}
+```
+</CodeGroup>
+
+<Info>
+This function is called internally by `FenineSystem.stakeToValidator()` to verify permission.
+</Info>
+
+---
+
+### getKeyInfo
+
+Get detailed information about a referral key.
+
+```solidity
+function getKeyInfo(bytes32 key) external view returns (
+    address validator,
+    bool isActive,
+    bool isMultiUse,
+    uint256 usageCount,
+    uint256 maxUsage,
+    uint256 createdAt,
+    uint256 expiresAt,
+    bool isExpired,
+    bool isUsable
+)
+```
+
+<CodeGroup>
+```javascript
+const code = 'PROMO2024';
+const key = web3.utils.keccak256(code);
+
+const info = await nftPassport.methods.getKeyInfo(key).call();
+
+console.log({
+  validator: info.validator,
+  isActive: info.isActive,
+  isMultiUse: info.isMultiUse,
+  usageCount: info.usageCount + '/' + (info.maxUsage || '∞'),
+  createdBlock: info.createdAt,
+  expiresBlock: info.expiresAt || 'Never',
+  isExpired: info.isExpired,
+  canUseNow: info.isUsable
+});
+```
+</CodeGroup>
+
+---
+
+### getValidatorKeys
+
+Get all referral keys created by a validator.
+
+```solidity
+function getValidatorKeys(address validator) 
+    external view returns (bytes32[] memory)
+```
+
+<CodeGroup>
+```javascript
+const keys = await nftPassport.methods.getValidatorKeys(validatorAddress).call();
+
+console.log('Total keys created:', keys.length);
+
+// Get details for each
+for (const key of keys) {
+  const info = await nftPassport.methods.getKeyInfo(key).call();
+  console.log({
+    key: key,
+    active: info.isActive,
+    used: info.usageCount + '/' + (info.maxUsage || '∞')
+  });
+}
+```
+</CodeGroup>
+
+---
+
+### getValidatorStats
+
+Get validator's referral statistics.
+
+```solidity
+function getValidatorStats(address validator) external view returns (
+    uint256 totalKeys,
+    uint256 activeKeys,
+    uint256 whitelistCount
+)
+```
+
+<CodeGroup>
+```javascript
+const stats = await nftPassport.methods.getValidatorStats(validatorAddress).call();
+
+console.log({
+  totalKeysCreated: stats.totalKeys,
+  activeKeys: stats.activeKeys,
+  whitelistedDelegators: stats.whitelistCount
+});
+```
+</CodeGroup>
+
+---
+
+### getWhitelistedBy
+
+Get which validator whitelisted a delegator.
+
+```solidity
+function getWhitelistedBy(address delegator) 
+    external view returns (address validator)
+```
+
+<CodeGroup>
+```javascript
+const validator = await nftPassport.methods.getWhitelistedBy(
+  delegatorAddress
+).call();
+
+console.log('Whitelisted by:', validator);
+```
+</CodeGroup>
+
+---
+
+## Helper Functions
+
+### hashReferralCode
+
+Generate key hash from human-readable string.
+
+```solidity
+function hashReferralCode(string calldata code) 
+    external pure returns (bytes32)
+```
+
+<CodeGroup>
+```javascript On-Chain Hash
+const hash = await nftPassport.methods.hashReferralCode('MY-CODE-2024').call();
+console.log('Hash:', hash);
+```
+
+```javascript Off-Chain Hash (Same Result)
+const hash = web3.utils.keccak256('MY-CODE-2024');
+console.log('Hash:', hash);
+// Use this approach to save gas (no contract call needed)
+```
+</CodeGroup>
+
+---
+
+### generateKey
+
+Generate deterministic key from validator address + nonce.
+
+```solidity
+function generateKey(address validator, uint256 nonce) 
+    external pure returns (bytes32)
+```
+
+<CodeGroup>
+```javascript
+const nonce = Date.now();
+const key = await nftPassport.methods.generateKey(
+  validatorAddress,
+  nonce
+).call();
+
+console.log('Generated key:', key);
+```
+</CodeGroup>
+
+---
+
+## Events
+
+```solidity
+event ReferralKeyCreated(
+    address indexed validator,
+    bytes32 indexed keyHash,
+    bool isMultiUse,
+    uint256 maxUsage,
+    uint256 expiresAt
+)
+
+event ReferralKeyUsed(
+    address indexed delegator,
+    address indexed validator,
+    bytes32 indexed keyHash
+)
+
+event ReferralKeyRevoked(
+    address indexed validator,
+    bytes32 indexed keyHash
+)
+
+event DirectInvite(
+    address indexed validator,
+    address indexed delegator
+)
+
+event WhitelistRevoked(
+    address indexed validator,
+    address indexed delegator
+)
+
+event DelegatorExited(
+    address indexed delegator,
+    address indexed validator
+)
+```
+
+---
+
+## Integration Examples
+
+<Tabs>
+  <Tab title="Validator: Create Campaign">
+    ```javascript
+    // Marketing campaign with multi-use promo code
+    const campaignCode = 'FENINE-LAUNCH-2024';
+    const key = web3.utils.keccak256(campaignCode);
+    
+    await nftPassport.methods.createMultiUseKey(
+      key,
+      1000,        // 1000 uses
+      28800 * 30   // 30-day campaign
+    ).send({ from: validatorAddress });
+    
+    console.log('Campaign created! Share code:', campaignCode);
+    
+    // Monitor usage
+    setInterval(async () => {
+      const info = await nftPassport.methods.getKeyInfo(key).call();
+      const stats = await nftPassport.methods.getValidatorStats(validatorAddress).call();
+      
+      console.log({
+        codeUsed: info.usageCount + '/1000',
+        totalWhitelisted: stats.whitelistCount,
+        blocksRemaining: info.expiresAt - await web3.eth.getBlockNumber()
+      });
+    }, 60000);
+    ```
+  </Tab>
+
+  <Tab title="Delegator: Join with Code">
+    ```javascript
+    // Received promo code from validator
+    const promoCode = 'FENINE-LAUNCH-2024';
+    const validatorAddress = '0x1234...'; // From validator's marketing
+    
+    // Step 1: Hash the code
+    const key = web3.utils.keccak256(promoCode);
+    
+    // Step 2: Check if valid
+    const info = await nftPassport.methods.getKeyInfo(key).call();
+    
+    if (!info.isUsable) {
+      console.log('Code not valid:', {
+        expired: info.isExpired,
+        maxUsed: info.usageCount >= info.maxUsage
+      });
+      return;
+    }
+    
+    // Step 3: Use the key
+    await nftPassport.methods.useReferralKey(key).send({
+      from: delegatorAddress
+    });
+    
+    console.log('✓ Whitelisted to validator:', validatorAddress);
+    
+    // Step 4: Now can stake
+    const systemContract = new web3.eth.Contract(systemABI, systemAddress);
+    await systemContract.methods.stakeToValidator(validatorAddress).send({
+      from: delegatorAddress,
+      value: web3.utils.toWei('1000', 'ether')
+    });
+    
+    console.log('✓ Staked successfully!');
+    ```
+  </Tab>
+
+  <Tab title="List All Whitelisted Users">
+    ```javascript
+    const stats = await nftPassport.methods.getValidatorStats(
+      validatorAddress
+    ).call();
+    
+    console.log('Total whitelisted:', stats.whitelistCount);
+    
+    // Get delegator list from FenineSystem
+    const systemContract = new web3.eth.Contract(systemABI, systemAddress);
+    const stakers = await systemContract.methods.getValidatorStakers(
+      validatorAddress
+    ).call();
+    
+    console.log('Active stakers:', stakers);
+    
+    // Check each one
+    for (const staker of stakers) {
+      const isWhitelisted = await nftPassport.methods.isWhitelisted(
+        staker,
+        validatorAddress
+      ).call();
+      
+      const whitelistedBy = await nftPassport.methods.getWhitelistedBy(
+        staker
+      ).call();
+      
+      console.log({
+        delegator: staker,
+        whitelisted: isWhitelisted,
+        validator: whitelistedBy
+      });
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Key Management">
+    - Generate keys off-chain using `keccak256` to save gas
+    - Use descriptive codes for multi-use keys (`SUMMER2024`, not random hashes)
+    - Store key-to-code mappings in your backend
+    - Revoke compromised keys immediately
+    - Set expiry on time-limited campaigns
+  </Accordion>
+
+  <Accordion title="For Validators">
+    - Use one-time keys for VIP delegators
+    - Use multi-use keys for public campaigns
+    - Monitor key usage via `getKeyInfo()`
+    - Track conversion: keys created → keys used → actual stakes
+    - Revoke keys if abused
+  </Accordion>
+
+  <Accordion title="For Delegators">
+    - Save the original code, not the hash
+    - Check key validity before using (`getKeyInfo`)
+    - One delegator can be whitelisted to multiple validators
+    - Exit cleanly: unstake first, then call `exitFromValidator()`
+  </Accordion>
+
+  <Accordion title="Security">
+    - Keys are NOT secrets - they're invitation tokens
+    - Anyone with the code can use it (if multi-use or unused)
+    - Validators should distribute keys via trusted channels
+    - Monitor for unusual usage patterns
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Admin Functions
+
+<Warning>
+These functions are restricted to contract admin for emergency use only.
+</Warning>
+
+### setPaused
+
+Pause/unpause the contract.
+
+```solidity
+function setPaused(bool _paused) external onlyAdmin
+```
+
+**Effects when paused:**
+- Cannot create keys
+- Cannot use keys
+- Cannot direct invite
+- View functions still work
+
+---
+
+### transferAdmin
+
+Transfer admin role.
+
+```solidity
+function transferAdmin(address newAdmin) external onlyAdmin
+```
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="FenineSystem Contract" icon="file-contract" href="/api-reference/contracts/fenine-system">
+    Learn about staking and rewards
+  </Card>
+  <Card title="Tax Manager" icon="calculator" href="/api-reference/contracts/tax-manager">
+    Reward taxation system
+  </Card>
+</CardGroup>

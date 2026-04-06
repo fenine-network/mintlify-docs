@@ -1,33 +1,105 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: 'API Reference'
+description: 'Complete API reference for Fenines Network FPoS blockchain'
 ---
 
-<Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
-</Note>
+## Overview
 
-## Welcome
+Fenines Network is a next-generation FPoS (Finality Proof of Stake) Layer 1 blockchain that combines validator management at the smart contract layer with consensus at the node layer. This API reference provides comprehensive documentation for interacting with the Fenines blockchain.
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
+<CardGroup cols={2}>
+  <Card title="RPC Endpoints" icon="server" href="/api-reference/rpc/overview">
+    JSON-RPC endpoints for blockchain interaction
+  </Card>
+  <Card title="System Contracts" icon="file-contract" href="/api-reference/contracts/fenine-system">
+    Core smart contracts for validator and delegation management
+  </Card>
+  <Card title="Web3 Examples" icon="code" href="/api-reference/examples/web3js">
+    Integration examples using Web3.js and ethers.js
+  </Card>
+  <Card title="Quick Reference" icon="bolt" href="/api-reference/quick-reference">
+    Common queries and function selectors
+  </Card>
+</CardGroup>
 
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+## Key Features
 
-## Authentication
+<AccordionGroup>
+  <Accordion title="Validator Management via Smart Contracts">
+    Unlike traditional PoS blockchains where validators are managed at the node layer, Fenines moves validator logic to smart contracts. This enables:
+    - Dynamic validator registration and staking
+    - Transparent commission and reward distribution
+    - On-chain governance for validator parameters
+  </Accordion>
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+  <Accordion title="Proximity-Based Reward System">
+    Unique 8-level proximity reward distribution (HPoS - Hierarchical Proof of Stake) that incentivizes network growth through referrals while maintaining anti-Sybil protections.
+  </Accordion>
 
-```json
-"security": [
-  {
-    "bearerAuth": []
-  }
-]
-```
+  <Accordion title="NFT Passport Whitelist System">
+    Validators create referral keys to invite delegators, creating a permissioned staking system with built-in tracking and attribution.
+  </Accordion>
+
+  <Accordion title="Dynamic Tax Manager">
+    Configurable tax system with burn mechanism, dev fees, tiered rates, and blacklist/whitelist capabilities.
+  </Accordion>
+</AccordionGroup>
+
+## System Architecture
+
+Fenines Network operates with a unique dual-layer architecture:
+
+### Consensus Layer (Fenine Engine)
+- Modified Clique PoA consensus with System TX support
+- 200-block epochs for validator set updates and reward distribution
+- Bootstrap node signers authorize blocks
+
+### Contract Layer (FenineSystem)
+- Validator Authority (VA) registration and staking
+- Delegator Contributor (DC) staking with proximity rewards
+- Automated reward distribution via system transactions
+
+## Getting Started
+
+<Steps>
+  <Step title="Connect to Network">
+    Connect to the Fenines RPC endpoint:
+    ```bash
+    https://rpc.fene.app
+    ```
+  </Step>
+  
+  <Step title="Query System Contract">
+    The core FenineSystem contract is deployed at:
+    ```
+    0x0000000000000000000000000000000000001000
+    ```
+  </Step>
+  
+  <Step title="Use Web3 Library">
+    Interact using standard Web3 libraries (ethers.js, web3.js, viem) just like any EVM chain.
+  </Step>
+</Steps>
+
+## Network Information
+
+| Parameter | Value |
+|-----------|-------|
+| Chain ID | TBD |
+| Block Time | ~3 seconds |
+| Epoch Length | 200 blocks |
+| Max Validators | 101 |
+| Min Validator Stake | 10,000 FEN |
+| Min Delegator Stake | 1,000 FEN |
+| Native Token | FEN |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="View RPC Methods" icon="plug" href="/api-reference/rpc/fenine-namespace">
+    Explore Fenine-specific RPC methods
+  </Card>
+  <Card title="Smart Contract Reference" icon="book" href="/api-reference/contracts/fenine-system">
+    Learn about FenineSystem contract functions
+  </Card>
+</CardGroup>

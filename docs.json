@@ -1,48 +1,61 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Fenine Network Documentation",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#e17100",
+    "light": "#e17100",
+    "dark": "#e17100"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "./logo/logo-light.svg",
+  "font": {
+    "headings": {
+      "family": "Space Grotesk"
+    },
+    "body": {
+      "family": "Space Grotesk"
+    },
+    "code": {
+      "family": "Fira Code"
+    }
+  },
   "navigation": {
     "tabs": [
       {
         "tab": "Guides",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Introduction",
             "pages": [
-              "index",
-              "quickstart",
-              "development"
+              "index"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Why Build on Fenine",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "guides/why-build",
+              "guides/technical-advantages",
+              "guides/unique-features"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Community",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "essentials/official-links"
             ]
-          },
+          }
+        ]
+      },
+      {
+        "tab": "Architecture",
+        "groups": [
           {
-            "group": "AI tools",
+            "group": "Core Concepts",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "architecture/overview",
+              "architecture/consensus",
+              "architecture/execution",
+              "architecture/fpos"
             ]
           }
         ]
@@ -51,18 +64,47 @@
         "tab": "API reference",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Overview",
             "pages": [
-              "api-reference/introduction"
+              "api-reference/introduction",
+              "api-reference/quick-reference"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "RPC Endpoints",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api-reference/rpc/overview",
+              {
+                "group": "fenine_* Methods",
+                "pages": [
+                  "api-reference/rpc/fenine-namespace",
+                  "api-reference/rpc/fenine/get-snapshot",
+                  "api-reference/rpc/fenine/get-signers",
+                  "api-reference/rpc/fenine/get-system-contract-abi",
+                  "api-reference/rpc/fenine/get-contract-constants"
+                ]
+              },
+              {
+                "group": "eth_* Methods",
+                "pages": [
+                  "api-reference/rpc/eth-namespace",
+                  "api-reference/rpc/eth/get-active-validators",
+                  "api-reference/rpc/eth/get-validator-info",
+                  "api-reference/rpc/eth/get-validator-stakers",
+                  "api-reference/rpc/eth/get-delegator-info",
+                  "api-reference/rpc/eth/get-estimated-delegator-reward",
+                  "api-reference/rpc/eth/total-network-stake",
+                  "api-reference/rpc/eth/get-current-epoch",
+                  "api-reference/rpc/eth/get-proximity-config"
+                ]
+              }
+            ]
+          },
+          {
+            "group": "Smart Contracts",
+            "pages": [
+              "api-reference/contracts/fenine-system",
+              "api-reference/contracts/nft-passport"
             ]
           }
         ]
@@ -71,33 +113,33 @@
     "global": {
       "anchors": [
         {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
+          "anchor": "dApps",
+          "href": "https://stake.fene.app",
+          "icon": "first-order-alt"
         },
         {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
+          "anchor": "Bridge",
+          "href": "https://bridge.fene.app",
+          "icon": "bridge"
         }
       ]
     }
   },
   "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
+    "light": "/logo/logo.svg",
+    "dark": "/logo/logo-light.svg"
   },
   "navbar": {
     "links": [
       {
         "label": "Support",
-        "href": "mailto:hi@mintlify.com"
+        "href": "mailto:support@fene.network"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
+      "label": "Stake Now",
+      "href": "https://stake.fene.app"
     }
   },
   "contextual": {
@@ -114,9 +156,9 @@
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "x": "https://x.com/feninesnetwork",
+      "github": "https://github.com/fenines-network",
+      "discord": "https://discord.gg/fenines"
     }
   }
 }

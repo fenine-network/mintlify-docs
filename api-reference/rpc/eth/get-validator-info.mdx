@@ -1,0 +1,300 @@
+---
+title: 'getValidatorInfo'
+description: 'Get detailed information about a specific validator'
+api: 'POST eth_call'
+---
+
+## Overview
+
+Queries the FenineSystem contract to get comprehensive information about a specific validator including status, stakes, commission, and rewards.
+
+## Contract Call Details
+
+<ParamField path="to" type="address" required>
+  `0x0000000000000000000000000000000000001000` (FenineSystem)
+</ParamField>
+
+<ParamField path="data" type="bytes" required>
+  Function selector: `0xb5d89627` + ABI-encoded validator address
+</ParamField>
+
+<ParamField path="validator" type="address" required>
+  The validator address to query
+</ParamField>
+
+## Response
+
+<ResponseField name="status" type="uint8">
+  Validator status:
+  - `0`: NOT_EXIST (never registered)
+  - `1`: CREATED (registered, not staked)
+  - `2`: STAKED (staked, waiting activation)
+  - `3`: VALIDATED (active, earning rewards)
+  - `4`: UNSTAKED (unstaking in progress)
+</ResponseField>
+
+<ResponseField name="selfStake" type="uint256">
+  Validator's self-stake amount in wei
+</ResponseField>
+
+<ResponseField name="totalStake" type="uint256">
+  Total stake (self + delegated) in wei
+</ResponseField>
+
+<ResponseField name="commissionRate" type="uint256">
+  Commission rate in basis points (e.g., 500 = 5%)
+</ResponseField>
+
+<ResponseField name="claimableReward" type="uint256">
+  Pending rewards available to claim in wei
+</ResponseField>
+
+<ResponseField name="stakerCount" type="uint256">
+  Number of delegators staked to this validator
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+```bash cURL
+# Replace <VALIDATOR_ADDRESS> with actual address (without 0x prefix)
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "eth_call",
+    "params": [{
+      "to": "0x0000000000000000000000000000000000001000",
+      "data": "0xb5d89627000000000000000000000000<VALIDATOR_ADDRESS>"
+    }, "latest"],
+    "id": 1
+  }'
+```
+
+```javascript Web3.js
+const Web3 = require('web3');
+const web3 = new Web3('https://rpc.fene.app');
+
+const validatorAddress = '0x1234567890123456789012345678901234567890';
+
+// Method 1: Manual encoding
+const data = web3.eth.abi.encodeFunctionCall({
+  name: 'getValidatorInfo',
+  type: 'function',
+  inputs: [{ type: 'address', name: 'vaAddr' }]
+}, [validatorAddress]);
+
+const result = await web3.eth.call({
+  to: '0x0000000000000000000000000000000000001000',
+  data: data
+}, 'latest');
+
+const decoded = web3.eth.abi.decodeParameters([
+  'uint8',   // status
+  'uint256', // selfStake
+  'uint256', // totalStake
+  'uint256', // commissionRate
+  'uint256', // claimableReward
+  'uint256'  // stakerCount
+], result);
+
+// Method 2: Using contract (recommended)
+const abi = JSON.parse(await web3.getSystemContractABI());
+const contract = new web3.eth.Contract(
+  abi,
+  '0x0000000000000000000000000000000000001000'
+);
+
+const info = await contract.methods.getValidatorInfo(validatorAddress).call();
+
+const STATUS_NAMES = ['NOT_EXIST', 'CREATED', 'STAKED', 'VALIDATED', 'UNSTAKED'];
+
+console.log({
+  status: STATUS_NAMES[info.status],
+  selfStake: web3.utils.fromWei(info.selfStake, 'ether') + ' FEN',
+  totalStake: web3.utils.fromWei(info.totalStake, 'ether') + ' FEN',
+  commission: (info.commissionRate / 100) + '%',
+  claimableReward: web3.utils.fromWei(info.claimableReward, 'ether') + ' FEN',
+  delegators: info.stakerCount
+});
+```
+
+```javascript ethers.js
+const { ethers } = require('ethers');
+
+const provider = new ethers.JsonRpcProvider('https://rpc.fene.app');
+const validatorAddress = '0x1234567890123456789012345678901234567890';
+
+// Get ABI and create contract
+const abiJson = await provider.send('fenine_getSystemContractABI', []);
+const abi = JSON.parse(abiJson);
+
+const contract = new ethers.Contract(
+  '0x0000000000000000000000000000000000001000',
+  abi,
+  provider
+);
+
+const [status, selfStake, totalStake, commission, reward, count] = 
+  await contract.getValidatorInfo(validatorAddress);
+
+const STATUS_NAMES = ['NOT_EXIST', 'CREATED', 'STAKED', 'VALIDATED', 'UNSTAKED'];
+
+console.log({
+  status: STATUS_NAMES[status],
+  selfStake: ethers.formatEther(selfStake) + ' FEN',
+  totalStake: ethers.formatEther(totalStake) + ' FEN',
+  commission: (Number(commission) / 100) + '%',
+  claimableReward: ethers.formatEther(reward) + ' FEN',
+  delegators: Number(count)
+});
+```
+
+```python Python
+from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider('https://rpc.fene.app'))
+
+validator_address = '0x1234567890123456789012345678901234567890'
+
+# Encode function call
+from eth_abi import encode
+
+selector = w3.keccak(text='getValidatorInfo(address)')[:4]
+params = encode(['address'], [validator_address])
+data = selector + params
+
+# Call contract
+result = w3.eth.call({
+    'to': '0x0000000000000000000000000000000000001000',
+    'data': data
+}, 'latest')
+
+# Decode result
+decoded = w3.codec.decode(
+    ['uint8', 'uint256', 'uint256', 'uint256', 'uint256', 'uint256'],
+    result
+)
+
+status, self_stake, total_stake, commission, reward, count = decoded
+
+STATUS_NAMES = ['NOT_EXIST', 'CREATED', 'STAKED', 'VALIDATED', 'UNSTAKED']
+
+print(f'Status: {STATUS_NAMES[status]}')
+print(f'Self Stake: {Web3.from_wei(self_stake, "ether")} FEN')
+print(f'Total Stake: {Web3.from_wei(total_stake, "ether")} FEN')
+print(f'Commission: {commission / 100}%')
+print(f'Claimable: {Web3.from_wei(reward, "ether")} FEN')
+print(f'Delegators: {count}')
+```
+</CodeGroup>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Validator Dashboard">
+    ```javascript
+    async function getValidatorDashboard(address) {
+      const info = await contract.methods.getValidatorInfo(address).call();
+      
+      // Calculate delegation ratio
+      const delegatedStake = BigInt(info.totalStake) - BigInt(info.selfStake);
+      const delegationRatio = Number(delegatedStake * 100n / BigInt(info.totalStake));
+      
+      return {
+        status: STATUS_NAMES[info.status],
+        isActive: info.status == 3,
+        selfStake: web3.utils.fromWei(info.selfStake, 'ether'),
+        delegatedStake: web3.utils.fromWei(delegatedStake.toString(), 'ether'),
+        totalStake: web3.utils.fromWei(info.totalStake, 'ether'),
+        delegationRatio: delegationRatio.toFixed(1) + '%',
+        commission: (info.commissionRate / 100) + '%',
+        pendingRewards: web3.utils.fromWei(info.claimableReward, 'ether'),
+        delegatorCount: info.stakerCount
+      };
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Validator Comparison">
+    ```javascript
+    async function compareValidators(addresses) {
+      const comparisons = await Promise.all(
+        addresses.map(async (addr) => {
+          const info = await contract.methods.getValidatorInfo(addr).call();
+          return {
+            address: addr,
+            totalStake: web3.utils.fromWei(info.totalStake, 'ether'),
+            commission: info.commissionRate / 100,
+            delegators: parseInt(info.stakerCount),
+            isActive: info.status == 3
+          };
+        })
+      );
+      
+      // Sort by total stake
+      comparisons.sort((a, b) => parseFloat(b.totalStake) - parseFloat(a.totalStake));
+      
+      console.table(comparisons);
+      return comparisons;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Check Before Staking">
+    ```javascript
+    async function canStakeToValidator(validatorAddress) {
+      const info = await contract.methods.getValidatorInfo(validatorAddress).call();
+      
+      if (info.status != 3) {
+        return { canStake: false, reason: 'Validator not active' };
+      }
+      
+      // Check if accepting delegators (optional business logic)
+      const constants = await web3.getContractConstants();
+      if (info.commissionRate > constants.maxCommission) {
+        return { canStake: false, reason: 'Commission too high' };
+      }
+      
+      return {
+        canStake: true,
+        validatorInfo: {
+          totalStake: web3.utils.fromWei(info.totalStake, 'ether'),
+          commission: (info.commissionRate / 100) + '%',
+          delegators: info.stakerCount
+        }
+      };
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Status Lifecycle
+
+```
+NOT_EXIST (0)
+    ↓ registerValidator()
+CREATED (1)
+    ↓ stakeValidator()
+STAKED (2)
+    ↓ [Epoch activation]
+VALIDATED (3) ← Active, earning rewards
+    ↓ unstakeValidator()
+UNSTAKED (4)
+    ↓ withdrawValidatorStake()
+CREATED (1) ← Can re-stake
+```
+
+## Related Methods
+
+<CardGroup cols={3}>
+  <Card title="getActiveValidators" href="/api-reference/rpc/eth/get-active-validators">
+    Get all active validators
+  </Card>
+  <Card title="getValidatorStakers" href="/api-reference/rpc/eth/get-validator-stakers">
+    Get validator's delegators
+  </Card>
+  <Card title="getDelegatorInfo" href="/api-reference/rpc/eth/get-delegator-info">
+    Get delegator stake info
+  </Card>
+</CardGroup>

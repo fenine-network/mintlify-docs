@@ -1,0 +1,128 @@
+---
+title: 'fenine_getSnapshot'
+description: 'Retrieve consensus snapshot state at a given block'
+api: 'GET fenine_getSnapshot'
+---
+
+## Overview
+
+Retrieves the state snapshot at a given block number. The snapshot contains information about authorized signers and recent signer activity.
+
+## Parameters
+
+<ParamField path="blockNumber" type="string" default="latest">
+  Block number in hex (e.g., "0x1a4") or "latest"
+</ParamField>
+
+## Response
+
+<ResponseField name="Number" type="uint64">
+  Block number of the snapshot
+</ResponseField>
+
+<ResponseField name="Hash" type="string">
+  Block hash (0x-prefixed hex string)
+</ResponseField>
+
+<ResponseField name="Signers" type="array">
+  List of authorized signer addresses
+</ResponseField>
+
+<ResponseField name="Recents" type="object">
+  Map of recent signer activity (block number → address)
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "fenine_getSnapshot",
+    "params": ["latest"],
+    "id": 1
+  }'
+```
+
+```javascript JavaScript
+const Web3 = require('web3');
+const web3 = new Web3('https://rpc.fene.app');
+
+// Extend web3 with custom method
+web3.extend({
+  methods: [{
+    name: 'getSnapshot',
+    call: 'fenine_getSnapshot',
+    params: 1
+  }]
+});
+
+const snapshot = await web3.getSnapshot('latest');
+console.log('Snapshot:', snapshot);
+```
+
+```python Python
+from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider('https://rpc.fene.app'))
+
+result = w3.provider.make_request(
+    'fenine_getSnapshot',
+    ['latest']
+)
+
+print('Snapshot:', result['result'])
+```
+</CodeGroup>
+
+## Response Example
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "Number": 12345,
+    "Hash": "0x1234567890abcdef...",
+    "Signers": [
+      "0x1111111111111111111111111111111111111111",
+      "0x2222222222222222222222222222222222222222",
+      "0x3333333333333333333333333333333333333333"
+    ],
+    "Recents": {
+      "12340": "0x1111111111111111111111111111111111111111",
+      "12342": "0x2222222222222222222222222222222222222222",
+      "12344": "0x3333333333333333333333333333333333333333"
+    }
+  }
+}
+```
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Monitor Signer Changes">
+    Track changes in the authorized signer set over time for consensus monitoring.
+  </Accordion>
+  
+  <Accordion title="Verify Block Producers">
+    Check which validators are currently authorized to produce blocks.
+  </Accordion>
+  
+  <Accordion title="Audit Recent Activity">
+    Review recent block production activity by each signer.
+  </Accordion>
+</AccordionGroup>
+
+## Related Methods
+
+<CardGroup cols={2}>
+  <Card title="fenine_getSigners" href="/api-reference/rpc/fenine/get-signers">
+    Get just the list of signers
+  </Card>
+  <Card title="fenine_getSnapshotAtHash" href="/api-reference/rpc/fenine/get-snapshot-at-hash">
+    Get snapshot by block hash
+  </Card>
+</CardGroup>

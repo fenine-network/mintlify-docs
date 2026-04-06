@@ -1,0 +1,512 @@
+---
+title: 'Unique Features'
+description: 'Proximity rewards, NFT passport, and system contracts'
+icon: 'star'
+---
+
+## Proximity Reward System
+
+Fenine's **8-level hierarchical incentive model** creates viral growth mechanics unlike any other blockchain.
+
+### How It Works
+
+When you stake to a validator, you join a **proximity chain**. Every delegator who stakes after you becomes your "downline", and you earn a percentage of their rewards:
+
+```mermaid
+graph TD
+    A[Alice stakes 10,000 FEN] --> B[Earns 10% base APY]
+    B --> C[Bob stakes via Alice's referral]
+    C --> D[Alice earns 7% of Bob's rewards]
+    D --> E[Charlie stakes via Bob's referral]
+    E --> F[Alice: 5% of Charlie | Bob: 7% of Charlie]
+    F --> G[8 levels deep...]
+    G --> H[Alice's effective APY: 12-15%]
+```
+
+### Mathematical Model
+
+Your total rewards:
+
+$$
+R_{\text{total}} = R_{\text{base}} + \sum_{k=1}^{8} \alpha_k \times R_{\text{downline}_k}
+$$
+
+**Proximity Coefficients** ($\alpha_k$):
+
+| Level | You Earn | Description |
+|-------|----------|-------------|
+| 1 | **7%** | Direct referrals (people you bring) |
+| 2 | **5%** | Friends of friends |
+| 3 | **4%** | Level 3 depth |
+| 4 | **3.5%** | Level 4 depth |
+| 5 | **3%** | Level 5 depth |
+| 6 | **2.5%** | Level 6 depth |
+| 7 | **2.5%** | Level 7 depth |
+| 8 | **2.5%** | Level 8 depth |
+| **Total** | **30%** | Maximum proximity distribution |
+
+### Example Scenario
+
+<Tabs>
+  <Tab title="Early Adopter">
+    **Alice** stakes 10,000 FEN on Day 1:
+    
+    - Month 1: 5 direct referrals → +35% APY boost
+    - Month 3: 20 total downlines (8 levels) → +45% APY boost
+    - Month 6: 100 total downlines → +60% APY boost
+    
+    **Total APY**: 10% (base) + 60% (proximity) = **70% APY**
+    
+    $$
+    R_{\text{annual}} = 10,000 \times 0.70 = 7,000 \text{ FEN}
+    $$
+  </Tab>
+
+  <Tab title="Late Joiner">
+    **Bob** stakes 10,000 FEN on Month 6:
+    
+    - Fewer potential downlines
+    - But still earns from new users
+    - Month 7: 2 direct referrals → +14% APY boost
+    
+    **Total APY**: 10% (base) + 14% (proximity) = **24% APY**
+    
+    $$
+    R_{\text{annual}} = 10,000 \times 0.24 = 2,400 \text{ FEN}
+    $$
+    
+    <Info>
+    Even late joiners benefit! The network is always growing.
+    </Info>
+  </Tab>
+
+  <Tab title="Whale Strategy">
+    **Carol** stakes 100,000 FEN:
+    
+    - High base rewards
+    - Attracts delegators (trust signal)
+    - Strategic validator selection
+    
+    **Calculation**:
+    
+    $$
+    \begin{align*}
+    R_{\text{base}} &= 100,000 \times 0.10 = 10,000 \\
+    R_{\text{prox}} &= 100,000 \times 0.30 = 30,000 \text{ (if max downlines)} \\
+    R_{\text{total}} &= 40,000 \text{ FEN/year}
+    \end{align*}
+    $$
+    
+    **APY**: 40%
+  </Tab>
+</Tabs>
+
+### Ineligibility Handling
+
+If your upline unstakes or exits, you **don't lose rewards** - they redistribute:
+
+$$
+R_{\text{residual}} = R_{\text{proximity}} \times 0.50 \text{ (back to you)} + R_{\text{proximity}} \times 0.50 \text{ (to validator)}
+$$
+
+**Example**:
+
+- Your Level-1 upline exits
+- You would've paid 7% to them
+- Instead: You keep 3.5%, validator gets 3.5%
+- Your net rewards **increase**!
+
+### Integration for dApps
+
+Build proximity-aware applications:
+
+```javascript
+// Get delegator's proximity position
+const fenineSystem = new ethers.Contract(
+  "0x0000000000000000000000000000000000001000",
+  FENINE_SYSTEM_ABI,
+  provider
+);
+
+const dcInfo = await fenineSystem.getDelegatorInfo(
+  delegatorAddress,
+  validatorAddress
+);
+
+const proximityPosition = Number(dcInfo.stakerIndex);
+
+// Position 0 = earliest delegator (receives from all below)
+// Position N = latest delegator (pays to all above)
+```
+
+**Use Cases**:
+
+- **Referral dashboards**: Show downline tree
+- **Gamification**: Leaderboards by proximity income
+- **NFT bonuses**: Airdrops to top 100 earners
+- **Governance weight**: Vote power based on network depth
+
+## NFT Passport System
+
+On-chain identity + referral tracking built into the protocol.
+
+### Core Concept
+
+**NFTPassport** (at `0x0000...1001`) is a soulbound NFT that:
+
+1. **Verifies identity**: Proof of unique human (KYC optional)
+2. **Tracks referrals**: On-chain referral tree
+3. **Gates access**: Whitelist for dApps/presales
+4. **Enables features**: Composable across ecosystem
+
+### Smart Contract Interface
+
+```solidity
+interface INFTPassport {
+    // Mint passport with referral key
+    function mintPassport(bytes32 referralKey) 
+        external payable returns (uint256 tokenId);
+    
+    // Check if user has passport
+    function hasPassport(address user) 
+        external view returns (bool);
+    
+    // Get referrer
+    function getReferrer(address user) 
+        external view returns (address);
+    
+    // Generate referral key (validator only)
+    function generateReferralKey() 
+        external returns (bytes32);
+    
+    // Get referral tree depth
+    function getReferralDepth(address user) 
+        external view returns (uint256);
+}
+```
+
+### Integration Examples
+
+<Tabs>
+  <Tab title="Whitelist Access">
+    ```solidity
+    import "@fenine/contracts/NFTPassport.sol";
+    
+    contract IDOContract {
+        NFTPassport public passport = NFTPassport(0x0000...1001);
+        
+        modifier onlyPassportHolders() {
+            require(
+                passport.hasPassport(msg.sender),
+                "NFT Passport required"
+            );
+            _;
+        }
+        
+        function buyIDO() external payable onlyPassportHolders {
+            // Only passport holders can participate
+        }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Tiered Benefits">
+    ```solidity
+    contract TieredRewards {
+        NFTPassport public passport = NFTPassport(0x0000...1001);
+        
+        function getRewardMultiplier(address user) 
+            public view returns (uint256) 
+        {
+            if (!passport.hasPassport(user)) {
+                return 100; // 1x (100%)
+            }
+            
+            uint256 depth = passport.getReferralDepth(user);
+            
+            if (depth >= 100) return 200; // 2x
+            if (depth >= 50) return 150;  // 1.5x
+            if (depth >= 10) return 125;  // 1.25x
+            return 110; // 1.1x
+        }
+    }
+    ```
+  </Tab>
+
+  <Tab title="Referral Tracking">
+    ```solidity
+    contract ReferralRewards {
+        NFTPassport public passport = NFTPassport(0x0000...1001);
+        
+        function claimRewards() external {
+            require(passport.hasPassport(msg.sender), "No passport");
+            
+            address referrer = passport.getReferrer(msg.sender);
+            
+            if (referrer != address(0)) {
+                // Pay 10% to referrer
+                uint256 referralBonus = rewards * 10 / 100;
+                payable(referrer).transfer(referralBonus);
+            }
+            
+            // Pay remaining to user
+            payable(msg.sender).transfer(rewards);
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### Use Cases
+
+<AccordionGroup>
+  <Accordion title="DeFi: Sybil Resistance">
+    **Problem**: Airdrops get farmed by bots  
+    **Solution**: Require NFT Passport for claims
+    
+    ```solidity
+    function claimAirdrop() external {
+        require(passport.hasPassport(msg.sender), "Need passport");
+        require(!claimed[msg.sender], "Already claimed");
+        
+        claimed[msg.sender] = true;
+        token.transfer(msg.sender, AIRDROP_AMOUNT);
+    }
+    ```
+    
+    **Result**: One claim per verified human
+  </Accordion>
+
+  <Accordion title="GameFi: Guild Formation">
+    **Concept**: Guilds = referral trees
+    
+    - Guild master = root node
+    - Members = downlines
+    - Track on-chain hierarchy
+    - Distribute loot based on tree position
+    
+    ```solidity
+    function getGuildMembers(address guildMaster) 
+        external view returns (address[] memory) 
+    {
+        // Traverse referral tree from root
+        // Return all descendants
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Social: Verified Accounts">
+    **Integration**: On-chain Twitter/Discord verification
+    
+    1. User mints passport
+    2. Signs message with wallet
+    3. Posts signature on social media
+    4. System verifies and links accounts
+    
+    **Benefits**:
+    - Verified badges
+    - Reputation portability
+    - Cross-platform identity
+  </Accordion>
+
+  <Accordion title="Enterprise: KYC Compliance">
+    **Flow**:
+    
+    1. User submits KYC docs off-chain
+    2. Approved users get passport mint signature
+    3. Mint passport with signature (on-chain proof)
+    4. Access regulated services
+    
+    **Privacy**: Personal data stays off-chain, only verification status on-chain
+  </Accordion>
+</AccordionGroup>
+
+## System Contract Integration
+
+Four precompiled contracts at deterministic addresses:
+
+### 1. FenineSystem (0x0000...1000)
+
+Core FPoS logic - validator and delegator management.
+
+**Key Functions**:
+
+```solidity
+interface IFenineSystem {
+    // Staking
+    function stake(address validator) external payable;
+    function unstake(address validator) external;
+    function claimDelegatorReward(address validator) external;
+    
+    // Queries
+    function getActiveValidators() external view returns (address[] memory);
+    function getValidatorInfo(address va) external view returns (ValidatorInfo memory);
+    function getDelegatorInfo(address dc, address va) external view returns (DelegatorInfo memory);
+    
+    // Advanced
+    function getEstimatedDelegatorReward(address dc, address va) 
+        external view returns (uint256 pending, uint256 afterProximity, uint256 afterTax);
+}
+```
+
+**Use Case**: Staking dashboard
+
+```javascript
+// Display all validators with stats
+const validators = await fenineSystem.getActiveValidators();
+
+for (const va of validators) {
+  const info = await fenineSystem.getValidatorInfo(va);
+  
+  console.log({
+    address: va,
+    totalStake: ethers.formatEther(info.totalStake),
+    commission: info.commissionRate / 100,
+    delegators: Number(info.stakerCount),
+    apy: calculateAPY(info) // Custom function
+  });
+}
+```
+
+### 2. NFTPassport (0x0000...1001)
+
+Already covered above - identity + referrals.
+
+### 3. TaxManager (0x0000...1002)
+
+Computes tax on staking rewards.
+
+```solidity
+interface ITaxManager {
+    function computeTax(uint256 amount) 
+        external view returns (
+            uint256 taxAmount,
+            uint256 burnShare,
+            uint256 devShare
+        );
+    
+    function getTaxRate() external view returns (uint256); // Returns 1000 = 10%
+}
+```
+
+**Use Case**: Display fee breakdown
+
+```javascript
+const reward = ethers.parseEther("100");
+const [taxAmount, burnShare, devShare] = await taxManager.computeTax(reward);
+
+console.log({
+  gross: "100 FEN",
+  tax: ethers.formatEther(taxAmount),
+  burned: ethers.formatEther(burnShare),
+  devFund: ethers.formatEther(devShare),
+  netReceived: ethers.formatEther(reward - taxAmount)
+});
+```
+
+### 4. RewardManager (0x0000...1003)
+
+Dynamic block reward configuration.
+
+```solidity
+interface IRewardManager {
+    function blockReward() external view returns (uint256);
+    function pendingReward() external view returns (uint256);
+    function pendingActivationEpoch() external view returns (uint256);
+}
+```
+
+**Use Case**: Show upcoming reward changes
+
+```javascript
+const currentReward = await rewardManager.blockReward();
+const pendingReward = await rewardManager.pendingReward();
+const activationEpoch = await rewardManager.pendingActivationEpoch();
+
+if (pendingReward != currentReward) {
+  console.log(`Reward will change from ${ethers.formatEther(currentReward)} to ${ethers.formatEther(pendingReward)} at epoch ${activationEpoch}`);
+}
+```
+
+## Comparison with Other Chains
+
+| Feature | Fenines | Ethereum | BNB Chain | Polygon |
+|---------|---------|----------|-----------|---------|
+| **Proximity Rewards** | ✅ 8 levels | ❌ | ❌ | ❌ |
+| **On-chain Identity** | ✅ NFT Passport | ❌ | ❌ | ❌ |
+| **System Contracts** | ✅ 4 precompiled | 9 precompiled | 4 precompiled | 9 precompiled |
+| **Contract-layer Validators** | ✅ FPoS | ❌ PoS | ❌ PoSA | ❌ PoS |
+| **Dynamic Rewards** | ✅ Governance | ❌ Fixed | ✅ BSC | ❌ Fixed |
+
+## Developer Tools
+
+### Fenine SDK (Coming Soon)
+
+High-level abstractions for common operations:
+
+```typescript
+import { FenineSDK } from "@fenine/sdk";
+
+const sdk = new FenineSDK({
+  rpcUrl: "https://vault-api.fene.app",
+  privateKey: process.env.PRIVATE_KEY
+});
+
+// Staking
+await sdk.stake({
+  validator: "0x...",
+  amount: ethers.parseEther("1000")
+});
+
+// Check proximity
+const proximity = await sdk.getProximityStats(myAddress);
+console.log(`You have ${proximity.downlineCount} total downlines`);
+
+// Mint passport
+await sdk.mintPassport({ referralKey: "0x..." });
+```
+
+### Subgraph Templates
+
+Index FPoS events:
+
+```graphql
+type Validator @entity {
+  id: ID!
+  address: Bytes!
+  totalStake: BigInt!
+  commission: Int!
+  delegators: [Delegator!] @derivedFrom(field: "validator")
+  createdAt: BigInt!
+}
+
+type Delegator @entity {
+  id: ID!
+  address: Bytes!
+  validator: Validator!
+  stakeAmount: BigInt!
+  proximityPosition: Int!
+  pendingRewards: BigInt!
+  joinedAt: BigInt!
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Build a Staking dApp" icon="code" href="/guides/staking-dapp-tutorial">
+    Tutorial: Proximity-aware staking dashboard
+  </Card>
+  
+  <Card title="NFT Passport Integration" icon="id-card" href="/guides/passport-integration">
+    Add identity verification to your dApp
+  </Card>
+  
+  <Card title="System Contract Reference" icon="book" href="/api-reference/contracts/fenine-system">
+    Full ABI and function documentation
+  </Card>
+  
+  <Card title="Migration Guide" icon="arrow-right" href="/guides/migration">
+    Move existing contracts to Fenine
+  </Card>
+</CardGroup>

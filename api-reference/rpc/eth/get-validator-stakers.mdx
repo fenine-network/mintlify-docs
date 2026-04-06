@@ -1,0 +1,227 @@
+---
+title: 'getValidatorStakers'
+description: 'Get list of delegators staked to a validator (proximity order)'
+api: 'POST eth_call'
+---
+
+## Overview
+
+Queries the FenineSystem contract to get the list of all delegators staked to a specific validator. The array is returned in **proximity order**, which is important for the reward distribution mechanism.
+
+## Contract Call Details
+
+<ParamField path="to" type="address" required>
+  `0x0000000000000000000000000000000000001000` (FenineSystem)
+</ParamField>
+
+<ParamField path="data" type="bytes" required>
+  Function call data: `getValidatorStakers(address)`
+</ParamField>
+
+<ParamField path="validator" type="address" required>
+  The validator address to query
+</ParamField>
+
+## Response
+
+<ResponseField name="result" type="address[]">
+  Array of delegator addresses in proximity order (first = deepest in chain)
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+```javascript Web3.js
+const Web3 = require('web3');
+const web3 = new Web3('https://rpc.fene.app');
+
+const validatorAddress = '0x1234567890123456789012345678901234567890';
+
+// Using contract instance
+const abi = JSON.parse(await web3.getSystemContractABI());
+const contract = new web3.eth.Contract(
+  abi,
+  '0x0000000000000000000000000000000000001000'
+);
+
+const stakers = await contract.methods.getValidatorStakers(validatorAddress).call();
+
+console.log('Total delegators:', stakers.length);
+console.log('Delegators (proximity order):', stakers);
+
+// First staker is deepest in proximity chain
+console.log('Deepest staker (receives rewards from all below):', stakers[0]);
+console.log('Latest staker (pays proximity to all above):', stakers[stakers.length - 1]);
+```
+
+```javascript ethers.js
+const { ethers } = require('ethers');
+
+const provider = new ethers.JsonRpcProvider('https://rpc.fene.app');
+const validatorAddress = '0x1234567890123456789012345678901234567890';
+
+const abiJson = await provider.send('fenine_getSystemContractABI', []);
+const abi = JSON.parse(abiJson);
+
+const contract = new ethers.Contract(
+  '0x0000000000000000000000000000000000001000',
+  abi,
+  provider
+);
+
+const stakers = await contract.getValidatorStakers(validatorAddress);
+console.log('Delegators:', stakers);
+```
+
+```python Python
+from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider('https://rpc.fene.app'))
+
+# You'll need the contract ABI
+from web3.contract import Contract
+
+# Get contract instance (assuming you have ABI)
+system_contract = w3.eth.contract(
+    address='0x0000000000000000000000000000000000001000',
+    abi=system_abi
+)
+
+validator_address = '0x1234567890123456789012345678901234567890'
+stakers = system_contract.functions.getValidatorStakers(validator_address).call()
+
+print(f'Total delegators: {len(stakers)}')
+print(f'Delegators: {stakers}')
+```
+</CodeGroup>
+
+## Proximity Order Explained
+
+<Warning>
+The order matters! This array determines proximity reward distribution.
+</Warning>
+
+```javascript
+// Example proximity chain
+const stakers = [
+  '0xAAAA...', // Position 0 - First staker (deepest)
+  '0xBBBB...', // Position 1 - Second staker
+  '0xCCCC...', // Position 2 - Third staker
+  '0xDDDD...'  // Position 3 - Latest staker
+];
+
+// When 0xDDDD claims rewards:
+// - 0xCCCC gets Level 1 proximity (7%)
+// - 0xBBBB gets Level 2 proximity (5%)
+// - 0xAAAA gets Level 3 proximity (4%)
+```
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Display Delegator List">
+    ```javascript
+    async function getDelegatorList(validatorAddress) {
+      const stakers = await contract.methods.getValidatorStakers(validatorAddress).call();
+      
+      // Get info for each delegator
+      const delegatorInfo = await Promise.all(
+        stakers.map(async (delegatorAddr, index) => {
+          const info = await contract.methods.getDelegatorInfo(
+            delegatorAddr,
+            validatorAddress
+          ).call();
+          
+          return {
+            position: index,
+            address: delegatorAddr,
+            stake: web3.utils.fromWei(info.stakeAmount, 'ether'),
+            pending: web3.utils.fromWei(info.pendingRewards, 'ether'),
+            joinedAt: info.joinedAt
+          };
+        })
+      );
+      
+      return delegatorInfo;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Calculate Proximity Depth">
+    ```javascript
+    async function getMyProximityDepth(myAddress, validatorAddress) {
+      const stakers = await contract.methods.getValidatorStakers(validatorAddress).call();
+      
+      const myIndex = stakers.findIndex(
+        addr => addr.toLowerCase() === myAddress.toLowerCase()
+      );
+      
+      if (myIndex === -1) {
+        return { isStaked: false };
+      }
+      
+      const uplineCount = myIndex; // How many above me
+      const downlineCount = stakers.length - myIndex - 1; // How many below me
+      
+      return {
+        isStaked: true,
+        position: myIndex,
+        uplineCount,
+        downlineCount,
+        canReceiveFrom: Math.min(downlineCount, 8), // Max 8 levels
+        paysTo: Math.min(uplineCount, 8)
+      };
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Visualize Proximity Chain">
+    ```javascript
+    async function visualizeProximityChain(validatorAddress) {
+      const stakers = await contract.methods.getValidatorStakers(validatorAddress).call();
+      
+      console.log('Proximity Chain (Top → Bottom):');
+      console.log('═'.repeat(50));
+      
+      for (let i = 0; i < stakers.length; i++) {
+        const info = await contract.methods.getDelegatorInfo(
+          stakers[i],
+          validatorAddress
+        ).call();
+        
+        const indent = '  '.repeat(i);
+        console.log(`${indent}${i}. ${stakers[i]}`);
+        console.log(`${indent}   Stake: ${web3.utils.fromWei(info.stakeAmount, 'ether')} FEN`);
+        
+        if (i < stakers.length - 1) {
+          console.log(`${indent}   ↓ receives from`);
+        }
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Important Notes
+
+<Info>
+**Proximity Position is Fixed**: Once a delegator stakes, their position in this array is fixed until they unstake. New delegators are always added to the end.
+</Info>
+
+<Warning>
+When a delegator unstakes, they are removed from the array (swap-pop operation), which changes the index of subsequent delegators.
+</Warning>
+
+## Related Methods
+
+<CardGroup cols={3}>
+  <Card title="getValidatorInfo" href="/api-reference/rpc/eth/get-validator-info">
+    Get validator details including delegator count
+  </Card>
+  <Card title="getDelegatorInfo" href="/api-reference/rpc/eth/get-delegator-info">
+    Get specific delegator's stake info
+  </Card>
+  <Card title="getProximityConfig" href="/api-reference/rpc/eth/get-proximity-config">
+    Get proximity reward distribution settings
+  </Card>
+</CardGroup>

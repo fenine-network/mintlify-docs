@@ -1,0 +1,454 @@
+---
+title: 'Technical Advantages'
+description: 'Performance metrics, EVM compatibility, and cost analysis'
+icon: 'gauge-high'
+---
+
+## High Performance
+
+Fenine delivers enterprise-grade throughput and latency:
+
+### Throughput Analysis
+
+**Mathematical Model**:
+
+$$
+\text{TPS}_{\text{max}} = \frac{G_{\text{limit}}}{G_{\text{tx}} \times T_{\text{block}}}
+$$
+
+For standard transfers ($G_{\text{tx}} = 21,000$) and $G_{\text{limit}} = 30M$:
+
+$$
+\text{TPS} = \frac{30,000,000}{21,000 \times 3} \approx 476 \text{ TPS}
+$$
+
+### Performance Comparison
+
+| Metric | Fenine | Ethereum | BNB Chain | Polygon |
+|--------|--------|----------|-----------|---------|
+| Block Time | **3s** | 12s | 3s | 2s |
+| Finality | **18s** | 12.8m | 18s | 128s |
+| TPS (Transfers) | **~476** | ~24 | ~160 | ~150 |
+| TPS (ERC20) | **~154** | ~8 | ~53 | ~50 |
+| TPS (Swaps) | **~67** | ~3 | ~23 | ~22 |
+| Gas Limit | **30M** | 15M | 140M | 30M |
+
+### Latency Distribution
+
+Real-world mainnet metrics:
+
+```
+Block Propagation:
+├─ P50: 150ms
+├─ P95: 300ms
+└─ P99: 500ms
+
+Transaction Confirmation:
+├─ 1 block: 3s (50% finality)
+├─ 3 blocks: 9s (87.5% finality)
+└─ 6 blocks: 18s (98.4% finality)
+```
+
+<Info>
+**Recommended Confirmations**:
+- Small transactions: 3 blocks (9s)
+- Medium value: 6 blocks (18s)
+- High value: 12 blocks (36s)
+</Info>
+
+## EVM Compatibility
+
+Fenine implements **100% EVM compatibility** at the London hardfork level.
+
+### Supported Features
+
+<Tabs>
+  <Tab title="Smart Contracts">
+    ✅ **All Ethereum Opcodes**
+    - BASEFEE (EIP-1559)
+    - EXTCODEHASH
+    - CREATE2
+    - SELFBALANCE
+    
+    ✅ **Solidity Versions**
+    - 0.4.x to 0.8.x
+    - Native overflow checks (0.8+)
+    - Custom errors
+    - User-defined value types
+    
+    ✅ **Precompiled Contracts**
+    - ecrecover (0x01)
+    - sha256 (0x02)
+    - ripemd160 (0x03)
+    - identity (0x04)
+    - modexp (0x05)
+    - bn256Add (0x06)
+    - bn256Mul (0x07)
+    - bn256Pairing (0x08)
+    - blake2f (0x09)
+  </Tab>
+
+  <Tab title="Development Tools">
+    **Frameworks**:
+    - ✅ Hardhat
+    - ✅ Foundry
+    - ✅ Truffle
+    - ✅ Remix IDE
+    - ✅ Brownie
+    
+    **Libraries**:
+    - ✅ ethers.js v6
+    - ✅ web3.js v4
+    - ✅ viem
+    - ✅ wagmi
+    - ✅ Alchemy SDK
+    - ✅ Moralis SDK
+    
+    **Testing**:
+    - ✅ Hardhat Test
+    - ✅ Forge (Foundry)
+    - ✅ Waffle
+    - ✅ Chai matchers
+  </Tab>
+
+  <Tab title="Standards">
+    **Token Standards**:
+    - ✅ ERC-20 (Fungible tokens)
+    - ✅ ERC-721 (NFTs)
+    - ✅ ERC-1155 (Multi-token)
+    - ✅ ERC-777 (Advanced fungible)
+    - ✅ ERC-4626 (Tokenized vaults)
+    
+    **Other Standards**:
+    - ✅ ERC-165 (Interface detection)
+    - ✅ ERC-2981 (NFT royalties)
+    - ✅ EIP-712 (Typed signatures)
+    - ✅ EIP-1167 (Minimal proxies)
+    - ✅ EIP-2535 (Diamond standard)
+  </Tab>
+
+  <Tab title="Infrastructure">
+    **Indexing**:
+    - ✅ The Graph (subgraphs)
+    - ✅ Covalent API
+    - ✅ Alchemy Notify
+    - ✅ Custom indexers
+    
+    **Wallets**:
+    - ✅ MetaMask
+    - ✅ WalletConnect
+    - ✅ Coinbase Wallet
+    - ✅ Trust Wallet
+    - ✅ Ledger
+    - ✅ Trezor
+    
+    **Oracles** (Planned):
+    - 🔜 Chainlink Price Feeds
+    - 🔜 Chainlink VRF
+    - 🔜 Chainlink Automation
+  </Tab>
+</Tabs>
+
+### Zero Migration Effort
+
+Deploy Ethereum contracts without any changes:
+
+```javascript
+// Your existing Ethereum deployment script
+import { ethers } from "hardhat";
+
+async function main() {
+  const Contract = await ethers.getContractFactory("MyContract");
+  const contract = await Contract.deploy();
+  await contract.waitForDeployment();
+  
+  console.log("Deployed to:", await contract.getAddress());
+}
+
+// Works on Fenine without modifications!
+```
+
+**Network Configuration** (hardhat.config.js):
+
+```javascript
+module.exports = {
+  networks: {
+    ethereum: {
+      url: "https://eth-mainnet.alchemyapi.io/v2/YOUR-API-KEY",
+      chainId: 1
+    },
+    fenine: {
+      url: "https://vault-api.fene.app",
+      chainId: 5881
+      // Everything else is identical!
+    }
+  }
+};
+```
+
+## Cost Analysis
+
+### Gas Price Comparison
+
+Real-world gas prices (7-day average):
+
+| Network | Gas Price | ETH Price | TX Cost (21K gas) |
+|---------|-----------|-----------|-------------------|
+| Ethereum | 50 gwei | $3,000 | **$3.15** |
+| BNB Chain | 5 gwei | $300 | **$0.32** |
+| Polygon | 100 gwei | $0.80 | **$0.17** |
+| **Fenine** | **1 gwei** | **$0.50** | **$0.00001** |
+
+### Transaction Type Breakdown
+
+| Transaction Type | Gas Used | Ethereum (50 gwei) | Fenine (1 gwei) | Savings |
+|------------------|----------|-------------------|-----------------|---------|
+| ETH Transfer | 21,000 | $3.15 | $0.00001 | **99.997%** |
+| ERC20 Transfer | 65,000 | $9.75 | $0.00003 | **99.997%** |
+| ERC721 Mint | 100,000 | $15.00 | $0.00005 | **99.997%** |
+| Uniswap Swap | 150,000 | $22.50 | $0.000075 | **99.997%** |
+| OpenSea Purchase | 200,000 | $30.00 | $0.0001 | **99.997%** |
+
+<Warning>
+Gas prices are volatile. Use real-time gas price APIs for production applications.
+</Warning>
+
+### EIP-1559 Fee Market
+
+Fenine implements dynamic base fee adjustment:
+
+$$
+\text{BaseFee}_{n+1} = \text{BaseFee}_n \times \left(1 + \frac{1}{8} \times \frac{G_{\text{used}} - G_{\text{target}}}{G_{\text{target}}}\right)
+$$
+
+**Parameters**:
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| Gas Target | 15M | Target gas per block |
+| Gas Limit | 30M | Maximum gas per block |
+| Elasticity | 2x | Max/target ratio |
+| Adjustment | ±12.5% | Max change per block |
+| Base Fee Burn | 100% | All base fees burned |
+
+**Total Transaction Fee**:
+
+$$
+\text{Fee} = (\text{BaseFee} + \text{PriorityFee}) \times G_{\text{used}}
+$$
+
+Where:
+- BaseFee → Burned (deflationary)
+- PriorityFee → Validator reward
+
+### Cost Projection Tool
+
+Estimate your dApp's monthly costs:
+
+<Tabs>
+  <Tab title="DeFi Protocol">
+    **Assumptions**:
+    - 100,000 swaps/month
+    - 150,000 gas per swap
+    - Average base fee: 1 gwei
+    - FEN price: $0.50
+    
+    **Calculation**:
+    
+    $$
+    \begin{align*}
+    \text{Cost}_{\text{month}} &= 100,000 \times 150,000 \times 1 \times 10^{-9} \times 0.50 \\
+    &= \$7.50
+    \end{align*}
+    $$
+    
+    **Ethereum equivalent**: $225,000 (30,000x more expensive)
+  </Tab>
+
+  <Tab title="NFT Marketplace">
+    **Assumptions**:
+    - 50,000 mints/month
+    - 100,000 gas per mint
+    - 20,000 sales/month
+    - 200,000 gas per sale
+    
+    **Calculation**:
+    
+    $$
+    \begin{align*}
+    \text{Mints} &= 50,000 \times 100,000 \times 10^{-9} \times 0.50 = \$2.50 \\
+    \text{Sales} &= 20,000 \times 200,000 \times 10^{-9} \times 0.50 = \$2.00 \\
+    \text{Total} &= \$4.50/\text{month}
+    \end{align*}
+    $$
+    
+    **Ethereum equivalent**: $135,000
+  </Tab>
+
+  <Tab title="GameFi">
+    **Assumptions**:
+    - 1M game actions/month
+    - 50,000 gas per action
+    - 10,000 item trades/month
+    - 100,000 gas per trade
+    
+    **Calculation**:
+    
+    $$
+    \begin{align*}
+    \text{Actions} &= 1,000,000 \times 50,000 \times 10^{-9} \times 0.50 = \$25.00 \\
+    \text{Trades} &= 10,000 \times 100,000 \times 10^{-9} \times 0.50 = \$0.50 \\
+    \text{Total} &= \$25.50/\text{month}
+    \end{align*}
+    $$
+    
+    **Ethereum equivalent**: $765,000
+  </Tab>
+</Tabs>
+
+## Deflationary Economics
+
+### Burn Mechanisms
+
+Fenine implements **dual burn** for supply reduction:
+
+<AccordionGroup>
+  <Accordion title="1. EIP-1559 Base Fee Burn">
+    Every transaction burns the base fee:
+    
+    $$
+    \text{Burned}_{\text{block}} = \text{BaseFee} \times G_{\text{used}}
+    $$
+    
+    **Daily Burn Estimate**:
+    
+    For $\text{BaseFee}_{\text{avg}} = 10$ gwei and $G_{\text{avg}} = 15M$:
+    
+    $$
+    \begin{align*}
+    \text{Blocks}_{\text{daily}} &= \frac{86,400}{3} = 28,800 \\
+    \text{Burned}_{\text{daily}} &= 10 \times 10^9 \times 15 \times 10^6 \times 28,800 \times 10^{-18} \\
+    &\approx 4,320 \text{ FEN/day}
+    \end{align*}
+    $$
+    
+    **Annual**: ~1.58M FEN
+  </Accordion>
+
+  <Accordion title="2. Tax Burn Mechanism">
+    50% of staking rewards tax is burned:
+    
+    $$
+    \text{Tax}_{\text{burn}} = \sum_{\text{claims}} R_{\text{claim}} \times \tau \times 0.50
+    $$
+    
+    Where $\tau = 0.10$ (10% tax rate).
+    
+    **Annual Estimate**:
+    
+    If 50% of emissions are claimed:
+    
+    $$
+    \begin{align*}
+    \text{Claimed}_{\text{annual}} &= 10,520,000 \times 0.50 = 5,260,000 \\
+    \text{Tax}_{\text{total}} &= 5,260,000 \times 0.10 = 526,000 \\
+    \text{Tax}_{\text{burn}} &= 526,000 \times 0.50 = 263,000 \text{ FEN}
+    \end{align*}
+    $$
+  </Accordion>
+
+  <Accordion title="Net Inflation Analysis">
+    **Supply Dynamics**:
+    
+    $$
+    \Delta S = E_{\text{annual}} - B_{\text{1559}} - B_{\text{tax}}
+    $$
+    
+    **Scenarios**:
+    
+    | Base Fee | Network Usage | EIP-1559 Burn | Tax Burn | Net Inflation |
+    |----------|---------------|---------------|----------|---------------|
+    | 1 gwei | Low | 158K FEN | 263K FEN | +10.1M (+10.1%) |
+    | 10 gwei | Medium | 1.58M FEN | 263K FEN | +8.68M (+8.7%) |
+    | 67 gwei | High | 10.6M FEN | 263K FEN | **-343K (-0.3%)** |
+    | 100 gwei | Very High | 15.8M FEN | 263K FEN | **-5.54M (-5.5%)** |
+    
+    <Info>
+    Network becomes **deflationary** when base fee exceeds **67 gwei**.
+    </Info>
+  </Accordion>
+</AccordionGroup>
+
+### Deflation Threshold
+
+Break-even point calculation:
+
+$$
+\text{BaseFee}_{\text{break-even}} = \frac{E_{\text{annual}}}{G_{\text{avg}} \times \frac{86,400}{T_{\text{block}}} \times 365.25}
+$$
+
+For $G_{\text{avg}} = 15M$ and $T_{\text{block}} = 3s$:
+
+$$
+\text{BaseFee}_{\text{break-even}} \approx 67 \text{ gwei}
+$$
+
+**Comparison**:
+- Ethereum average: 30-50 gwei (deflationary)
+- Fenine average: 1-5 gwei (inflationary, but low)
+- Fenine peak: 100+ gwei during congestion (highly deflationary)
+
+## Network Scalability
+
+### Horizontal Scaling (Future)
+
+Planned scaling solutions:
+
+<Tabs>
+  <Tab title="Sharding">
+    **Target**: 2026
+    
+    - 4 execution shards
+    - 1,904 TPS total (476 per shard)
+    - Cross-shard messaging
+    - Unified state root
+  </Tab>
+
+  <Tab title="Rollups">
+    **Target**: 2025
+    
+    - Optimistic rollups support
+    - ZK-rollup integration
+    - 10,000+ TPS on L2
+    - Cheap data availability
+  </Tab>
+
+  <Tab title="State Channels">
+    **Target**: 2025
+    
+    - Payment channels
+    - Generalized state channels
+    - Instant finality
+    - Minimal on-chain footprint
+  </Tab>
+</Tabs>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Architecture Deep Dive" icon="building" href="/architecture/overview">
+    Full technical specifications
+  </Card>
+  
+  <Card title="Unique Features" icon="star" href="/guides/unique-features">
+    Proximity rewards and NFT passport
+  </Card>
+  
+  <Card title="Migration Guide" icon="arrow-right" href="/guides/migration">
+    Move from other EVM chains
+  </Card>
+  
+  <Card title="Benchmarks" icon="chart-line" href="https://stats.fene.app">
+    Real-time network statistics
+  </Card>
+</CardGroup>

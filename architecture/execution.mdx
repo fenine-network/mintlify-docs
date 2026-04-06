@@ -1,0 +1,712 @@
+---
+title: 'Execution Layer'
+description: 'EVM state machine with system contract integration'
+icon: 'microchip'
+---
+
+## Overview
+
+The Fenines execution layer implements a **fully EVM-compatible state machine** with modifications to support consensus-driven system transactions and native staking primitives. The architecture maintains Ethereum compatibility while extending functionality through precompiled system contracts at deterministic addresses.
+
+<Info>
+**EVM Version**: London (EIP-1559 compatible)  
+**Gas Model**: Dynamic base fee with burn mechanism  
+**State Model**: Modified Patricia Merkle Trie  
+**System Contracts**: 4 precompiled addresses
+</Info>
+
+## State Machine Architecture
+
+### State Transition Function
+
+The state transition function extends Ethereum's model:
+
+$$
+\Upsilon(\sigma, T) = \sigma' \cup \\{\mathcal{TX}_{\text{system}}\\}
+$$
+
+where:
+- $\sigma$ = World state at block $n-1$
+- $T$ = Set of user transactions
+- $\mathcal{TX}_{\text{system}}$ = System transactions (at epoch boundaries)
+- $\sigma'$ = Resulting world state at block $n$
+
+### Epoch-Aware Transitions
+
+State evolution branches based on block position:
+
+$$
+\sigma_{n} = \begin{cases}
+\text{ProcessBlock}(\sigma_{n-1}, T_n) & \text{if } n \bmod 200 \neq 0 \\
+\text{ProcessEpoch}(\sigma_{n-1}, T_n, \mathcal{TX}_{\text{sys}}) & \text{if } n \bmod 200 = 0
+\end{cases}
+$$
+
+## System Contract Framework
+
+### Contract Deployment Strategy
+
+System contracts are **genesis-embedded** with immutable addresses:
+
+| Address | Contract | Type | Purpose |
+|---------|----------|------|---------|
+| `0x0000...1000` | FenineSystem | Logic | Validator & delegator management |
+| `0x0000...1001` | NFTPassport | Logic | Whitelist & referral system |
+| `0x0000...1002` | TaxManager | Logic | Tax calculation & burn mechanism |
+| `0x0000...1003` | RewardManager | Storage | Dynamic reward configuration |
+| `0xFFFF...FFFF` | FeeRecorder | EOA | Gas fee accumulation |
+
+<Warning>
+These addresses are **consensus-critical**. Changing them requires a hard fork.
+</Warning>
+
+### FenineSystem Contract (0x1000)
+
+#### Core Functions
+
+<Tabs>
+  <Tab title="Validator Lifecycle">
+    ```solidity
+    // Create validator
+    function createValidator(
+        uint256 commissionRate,
+        bytes calldata blsPubKey
+    ) external payable returns (uint256 validatorId)
+    
+    // Stake as validator
+    function stakeValidator(uint256 validatorId) 
+        external payable
+    
+    // Unstake validator
+    function unstakeValidator() external
+    
+    // Exit validator (withdraw)
+    function exitValidator() external
+    ```
+    
+    **State Machine**:
+    
+    $$
+    \text{NOT\_EXIST} \xrightarrow{\text{create}} \text{CREATED} \xrightarrow{\text{stake}} \text{STAKED} \xrightarrow{\text{epoch}} \text{VALIDATED}
+    $$
+    
+    $$
+    \text{VALIDATED} \xrightarrow{\text{unstake}} \text{UNSTAKED} \xrightarrow{\text{epoch}} \text{CREATED}
+    $$
+  </Tab>
+
+  <Tab title="Delegator Operations">
+    ```solidity
+    // Stake to validator
+    function stake(address validatorAddress) 
+        external payable
+    
+    // Unstake from validator
+    function unstake(address validatorAddress) 
+        external
+    
+    // Claim rewards
+    function claimDelegatorReward(address validatorAddress) 
+        external
+    
+    // Emergency exit
+    function emergencyExit(address validatorAddress) 
+        external
+    ```
+    
+    **Reward Calculation**:
+    
+    $$
+    R_{\text{claim}} = R_{\text{pending}} \times (1 - P_{\text{prox}}) \times (1 - \tau)
+    $$
+    
+    where:
+    - $P_{\text{prox}} \approx 0.30$ (proximity distribution)
+    - $\tau = 0.10$ (tax rate)
+  </Tab>
+
+  <Tab title="System Functions">
+    ```solidity
+    // Called at epoch boundary (TX 1)
+    function updateValidatorCandidates() external
+    
+    // Called at epoch boundary (TX 2)
+    function distributeBlockReward(uint256 reward) 
+        external
+    
+    // Called at epoch boundary (TX 3)
+    function syncRewardState() external
+    ```
+    
+    **Access Control**:
+    
+    $$
+    \text{require}(\text{msg.sender} = \text{block.coinbase})
+    $$
+    
+    Only the current block validator can call system functions.
+  </Tab>
+
+  <Tab title="Query Functions">
+    ```solidity
+    // Validator info
+    function getValidatorInfo(address va) 
+        external view returns (ValidatorInfo)
+    
+    // Delegator info
+    function getDelegatorInfo(address dc, address va) 
+        external view returns (DelegatorInfo)
+    
+    // Active validators
+    function getActiveValidators() 
+        external view returns (address[])
+    
+    // Proximity config
+    function getProximityConfig() 
+        external view returns (ProximityConfig)
+    ```
+    
+    Gas-free read operations for dApps.
+  </Tab>
+</Tabs>
+
+### Storage Layout
+
+#### Critical Storage Slots
+
+<Note>
+These slots are **consensus-critical** and must match exactly across all nodes.
+</Note>
+
+```solidity
+// Slot 11 (0x0B): activeValidatorSet.length
+// Used by consensus engine for reward routing
+bytes32 constant ACTIVE_VALIDATOR_SET_SLOT = bytes32(uint256(11));
+
+// Dynamic array elements at:
+// keccak256(slot) + index
+```
+
+**Invariant Verification**:
+
+```bash
+forge inspect src/FenineSystem.sol:FenineSystem storage-layout
+```
+
+#### State Variables
+
+| Slot | Variable | Type | Purpose |
+|------|----------|------|---------|
+| 0 | `initialized` | `bool` | Initialization guard |
+| 1 | `currentEpoch` | `uint256` | Epoch counter |
+| 2 | `totalValidators` | `uint256` | VA count |
+| 3 | `totalDelegators` | `uint256` | DC count |
+| 4 | `totalStaked` | `uint256` | Network-wide stake |
+| ... | ... | ... | ... |
+| 11 | `activeValidatorSet.length` | `uint256` | **Consensus-read** |
+
+### NFTPassport Contract (0x1001)
+
+Implements a whitelist + referral system:
+
+```solidity
+contract NFTPassport {
+    // Mint passport with referral
+    function mintPassport(bytes32 referralKey) 
+        external payable returns (uint256 tokenId)
+    
+    // Check passport status
+    function hasPassport(address user) 
+        external view returns (bool)
+    
+    // Get referrer
+    function getReferrer(address user) 
+        external view returns (address)
+    
+    // Generate referral key (validator only)
+    function generateReferralKey() 
+        external returns (bytes32)
+}
+```
+
+**Referral Tree**:
+
+$$
+\text{Tree}(u) = \\{\text{parent}(u), \text{children}(u)\\}
+$$
+
+where each user has at most 1 parent and unlimited children.
+
+### TaxManager Contract (0x1002)
+
+Computes tax and distributes burn/dev shares:
+
+```solidity
+contract TaxManager {
+    // Compute tax
+    function computeTax(uint256 amount) 
+        external view returns (
+            uint256 taxAmount,
+            uint256 burnShare,
+            uint256 devShare
+        )
+    
+    // Update tax rate (governance)
+    function setTaxRate(uint256 newRate) external
+    
+    // Update distribution (governance)
+    function setBurnDevSplit(uint256 burnPct, uint256 devPct) 
+        external
+}
+```
+
+**Tax Distribution**:
+
+$$
+\begin{align*}
+\text{Tax} &= R \times \tau \\
+\text{Burn} &= \text{Tax} \times \beta \\
+\text{Dev} &= \text{Tax} \times (1 - \beta)
+\end{align*}
+$$
+
+Default: $\tau = 0.10$, $\beta = 0.50$
+
+### RewardManager Contract (0x1003)
+
+Stores dynamic reward configuration:
+
+```solidity
+contract RewardManager {
+    uint256 public blockReward;         // Slot 0
+    uint256 public pendingReward;       // Slot 1
+    uint256 public pendingActivationEpoch; // Slot 2
+    
+    // Update reward (governance)
+    function updateBlockReward(uint256 newReward, uint256 activationEpoch) 
+        external
+}
+```
+
+**Reward Transition**:
+
+$$
+R_{\text{active}}(E) = \begin{cases}
+R_{\text{current}} & \text{if } E < E_{\text{activation}} \\
+R_{\text{pending}} & \text{if } E \geq E_{\text{activation}}
+\end{cases}
+$$
+
+## Gas Model
+
+### EIP-1559 Base Fee
+
+Fenines implements London's dynamic fee market:
+
+$$
+\text{BaseFee}_{n+1} = \text{BaseFee}_n \times \left(1 + \frac{1}{8} \times \frac{G_{\text{used}} - G_{\text{target}}}{G_{\text{target}}}\right)
+$$
+
+**Parameters**:
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| Gas Target | 15M | Target gas per block |
+| Gas Limit | 30M | Maximum gas per block |
+| Elasticity | 2x | Max/target ratio |
+| Adjustment | 12.5% | Max change per block |
+
+### Base Fee Burn
+
+Portion of gas fees are burned:
+
+$$
+\text{Burned}_n = \text{BaseFee}_n \times G_{\text{used}}
+$$
+
+This creates **deflationary pressure**:
+
+$$
+\text{Supply}_{n+1} = \text{Supply}_n + R_{\text{block}} - \text{Burned}_n
+$$
+
+Network becomes deflationary when:
+
+$$
+\text{Burned} > R_{\text{block}} \iff \text{BaseFee} \times G_{\text{used}} > 1 \text{ FEN}
+$$
+
+**Break-even Analysis**:
+
+$$
+\text{BaseFee}_{\text{break-even}} = \frac{10^{18}}{G_{\text{used}}}
+$$
+
+For $G_{\text{used}} = 15M$ (target):
+
+$$
+\text{BaseFee}_{\text{break-even}} \approx 66.67 \text{ gwei}
+$$
+
+### Gas Price Priority
+
+Transaction ordering within a block follows:
+
+$$
+\text{Priority}(tx) = \min(\text{maxFeePerGas}, \text{maxPriorityFeePerGas} + \text{baseFee})
+$$
+
+Transactions sorted by priority descending.
+
+## System Transaction Execution
+
+### Exemption Rules
+
+System transactions bypass standard checks:
+
+| Check | User TX | System TX |
+|-------|---------|-----------|
+| Balance ≥ gasLimit × maxFee | ✅ Required | ❌ Exempt |
+| Nonce sequential | ✅ Required | ✅ Required |
+| Signature valid | ✅ Required | ✅ Required |
+| Gas limit ≤ block limit | ✅ Required | ✅ Required |
+
+**Implementation**:
+
+```go
+func (st *StateTransition) preCheck() error {
+    // Skip balance check for system transactions
+    if st.isSystemTx() {
+        return nil
+    }
+    
+    // Standard balance check
+    if st.state.GetBalance(st.from) < requiredBalance {
+        return ErrInsufficientFunds
+    }
+    return nil
+}
+```
+
+### Execution Order
+
+At epoch blocks, transactions execute in strict order:
+
+$$
+\mathcal{O}_{\text{exec}} = [\mathcal{TX}_{\text{sys,1}}, \mathcal{TX}_{\text{sys,2}}, \mathcal{TX}_{\text{sys,3}}, \mathcal{TX}_{\text{user,1}}, \ldots, \mathcal{TX}_{\text{user,n}}]
+$$
+
+**Ordering Guarantee**:
+
+$$
+\forall i < j: \quad \text{nonce}(\mathcal{TX}_i) < \text{nonce}(\mathcal{TX}_j)
+$$
+
+### State Commitment
+
+After all transactions execute, state root computed:
+
+$$
+\text{StateRoot} = \text{Keccak256}(\text{MPT}(\sigma_n))
+$$
+
+where MPT = Modified Patricia Merkle Trie.
+
+## State Storage Model
+
+### Account State
+
+Each account stores:
+
+```go
+type Account struct {
+    Nonce    uint64       // Transaction counter
+    Balance  *big.Int     // FEN balance (wei)
+    Root     common.Hash  // Storage trie root
+    CodeHash common.Hash  // Contract code hash
+}
+```
+
+**Account Hash**:
+
+$$
+H_{\text{account}} = \text{Keccak256}(\text{RLP}(\text{nonce}, \text{balance}, \text{storageRoot}, \text{codeHash}))
+$$
+
+### Storage Trie
+
+Contract storage organized as:
+
+$$
+\text{Storage}(addr, key) = \text{MPT}_{\text{account}}\left[\text{Keccak256}(key)\right]
+$$
+
+**Optimization**: Leaf nodes compressed via RLP encoding.
+
+### World State Trie
+
+Global state organized as:
+
+$$
+\text{StateRoot} = \text{MPT}\left[\text{Keccak256}(addr) \mapsto H_{\text{account}}\right]
+$$
+
+**Depth**: Maximum depth $\approx 64$ nibbles (32 bytes × 2).
+
+## Transaction Lifecycle
+
+<Steps>
+  <Step title="Submission">
+    User submits signed transaction:
+    
+    ```typescript
+    const tx = {
+      to: "0x...",
+      value: parseEther("1.0"),
+      data: "0x...",
+      maxFeePerGas: parseUnits("100", "gwei"),
+      maxPriorityFeePerGas: parseUnits("2", "gwei"),
+      gasLimit: 21000,
+      nonce: await signer.getTransactionCount()
+    }
+    const signedTx = await signer.signTransaction(tx)
+    ```
+  </Step>
+
+  <Step title="Validation">
+    Node validates:
+    
+    $$
+    \begin{align*}
+    \text{Signature} &\stackrel{?}{\text{valid}} \\
+    \text{Nonce} &\stackrel{?}{=} \sigma(\text{from}).\text{nonce} \\
+    \text{Balance} &\stackrel{?}{\geq} \text{value} + \text{gasLimit} \times \text{maxFee} \\
+    \text{GasLimit} &\stackrel{?}{\leq} \text{BlockGasLimit}
+    \end{align*}
+    $$
+  </Step>
+
+  <Step title="Mempool">
+    Transaction enters pending pool:
+    
+    $$
+    \mathcal{P}_{\text{pending}} \leftarrow \mathcal{P}_{\text{pending}} \cup \\{tx\\}
+    $$
+    
+    Sorted by:
+    1. Nonce (ascending)
+    2. Priority fee (descending)
+  </Step>
+
+  <Step title="Inclusion">
+    Validator selects transactions for next block:
+    
+    $$
+    T_n = \arg\max_{T \subset \mathcal{P}} \\left\\{ \sum_{tx \in T} \text{PriorityFee}(tx) \\right\\}
+    $$
+    
+    subject to:
+    
+    $$
+    \sum_{tx \in T} \text{GasLimit}(tx) \leq 30M
+    $$
+  </Step>
+
+  <Step title="Execution">
+    EVM executes transaction:
+    
+    ```
+    1. Deduct gas: balance -= gasLimit × maxFee
+    2. Execute bytecode
+    3. Refund unused: balance += gasRefund × maxFee
+    4. Pay validator: validator += gasUsed × priorityFee
+    5. Burn base fee: supply -= gasUsed × baseFee
+    ```
+  </Step>
+
+  <Step title="Receipt">
+    Transaction receipt generated:
+    
+    ```go
+    type Receipt struct {
+        Status          uint64  // 1 = success, 0 = revert
+        CumulativeGas   uint64  // Total gas used in block
+        Logs            []Log   // Event logs
+        Bloom           Bloom   // Log bloom filter
+        TransactionHash Hash    // Transaction hash
+    }
+    ```
+  </Step>
+</Steps>
+
+## Precompiled Contracts
+
+Fenines inherits Ethereum's precompiles:
+
+| Address | Function | Gas Cost |
+|---------|----------|----------|
+| `0x01` | ECRecover | 3000 |
+| `0x02` | SHA256 | 60 + 12/word |
+| `0x03` | RIPEMD160 | 600 + 120/word |
+| `0x04` | Identity | 15 + 3/word |
+| `0x05` | ModExp | Dynamic |
+| `0x06` | BN256Add | 150 (Berlin) |
+| `0x07` | BN256Mul | 6000 (Berlin) |
+| `0x08` | BN256Pairing | 45000 + 34000/pair |
+| `0x09` | Blake2F | Dynamic |
+
+<Note>
+Gas costs reflect **Berlin hardfork** pricing (active at genesis).
+</Note>
+
+## EVM Opcode Set
+
+### London-Active Opcodes
+
+New opcodes enabled:
+
+| Opcode | Name | Gas | Description |
+|--------|------|-----|-------------|
+| `0x46` | BASEFEE | 2 | Get current base fee |
+| `0x3F` | EXTCODEHASH | 100 | Get code hash of account |
+
+### Gas Costs (Berlin)
+
+Cold vs warm storage access:
+
+$$
+\text{Gas}_{\text{SLOAD}} = \begin{cases}
+2100 & \text{if cold access} \\
+100 & \text{if warm access}
+\end{cases}
+$$
+
+$$
+\text{Gas}_{\text{SSTORE}} = \begin{cases}
+20000 & \text{if cold, 0→nonzero} \\
+2900 & \text{if warm, 0→nonzero} \\
+5000 & \text{if cold, nonzero→nonzero} \\
+100 & \text{if warm, nonzero→nonzero}
+\end{cases}
+$$
+
+## State Synchronization
+
+### Fast Sync
+
+Nodes can sync via state snapshots:
+
+$$
+\text{Sync}_{\text{fast}} = \text{Headers} + \text{StateSnap}_{B_{\text{recent}}} + \text{Receipts}_{\text{recent}}
+$$
+
+**Time Complexity**:
+
+$$
+T_{\text{sync}} = \mathcal{O}(n \log n)
+$$
+
+where $n$ = number of accounts.
+
+### Snap Sync
+
+Optimized sync protocol:
+
+1. Download block headers
+2. Download state snapshot (parallel)
+3. Heal missing trie nodes
+4. Verify state root
+
+**Bandwidth Reduction**:
+
+$$
+\text{Data}_{\text{snap}} \approx 20\% \times \text{Data}_{\text{full}}
+$$
+
+## Security Considerations
+
+### Reentrancy Protection
+
+System contracts use OpenZeppelin's `ReentrancyGuard`:
+
+```solidity
+modifier nonReentrant() {
+    require(_status != _ENTERED, "ReentrancyGuard: reentrant call");
+    _status = _ENTERED;
+    _;
+    _status = _NOT_ENTERED;
+}
+```
+
+### Integer Overflow
+
+Solidity 0.8+ has built-in overflow checks:
+
+$$
+\forall a, b \in \mathbb{Z}^+: \quad a + b < 2^{256}
+$$
+
+Otherwise reverts with `Panic(0x11)`.
+
+### Access Control
+
+Critical functions protected:
+
+```solidity
+modifier onlyValidator() {
+    require(msg.sender == block.coinbase, "Not validator");
+    _;
+}
+
+modifier onlyGovernance() {
+    require(msg.sender == governanceAddress, "Not governance");
+    _;
+}
+```
+
+## Performance Optimizations
+
+### State Caching
+
+Hot paths cache frequently accessed storage:
+
+| Cache | Capacity | Purpose |
+|-------|----------|---------|
+| Account Cache | 1000 | Recent account states |
+| Storage Cache | 10000 | Recent storage slots |
+| Code Cache | 1000 | Contract bytecode |
+
+**Hit Rate**:
+
+$$
+\text{HitRate} \approx 85\text{-}95\%
+$$
+
+for typical workloads.
+
+### Parallel Execution
+
+Independent transactions execute in parallel:
+
+$$
+\text{Speedup} = \frac{T_{\text{sequential}}}{T_{\text{parallel}}} \leq \frac{n}{1 + \alpha(n-1)}
+$$
+
+where $\alpha$ = serialization factor (Amdahl's Law).
+
+## Related Topics
+
+<CardGroup cols={2}>
+  <Card title="FenineSystem ABI" icon="file-code" href="/api-reference/contracts/fenine-system">
+    Full contract specification
+  </Card>
+  <Card title="System Transactions" icon="gears" href="/architecture/system-tx">
+    Epoch boundary protocol
+  </Card>
+  <Card title="Gas Optimization" icon="bolt" href="/guides/gas-optimization">
+    Best practices for efficiency
+  </Card>
+  <Card title="Smart Contract Security" icon="shield" href="/guides/security">
+    Audit checklist and patterns
+  </Card>
+</CardGroup>

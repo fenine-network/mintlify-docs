@@ -1,0 +1,190 @@
+---
+title: 'getActiveValidators'
+description: 'Get list of currently active validators'
+api: 'POST eth_call'
+---
+
+## Overview
+
+Queries the FenineSystem contract to get the list of currently active validators. These are validators with `VALIDATED` status who are participating in the network and earning rewards.
+
+## Contract Call Details
+
+<ParamField path="to" type="address" required>
+  `0x0000000000000000000000000000000000001000` (FenineSystem)
+</ParamField>
+
+<ParamField path="data" type="bytes" required>
+  Function selector: `0x9de70258` (no parameters)
+</ParamField>
+
+## Response
+
+<ResponseField name="result" type="bytes">
+  ABI-encoded array of validator addresses. Decode as `address[]`.
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "eth_call",
+    "params": [{
+      "to": "0x0000000000000000000000000000000000001000",
+      "data": "0x9de70258"
+    }, "latest"],
+    "id": 1
+  }'
+```
+
+```javascript Web3.js
+const Web3 = require('web3');
+const web3 = new Web3('https://rpc.fene.app');
+
+// Method 1: Using eth_call directly
+const result = await web3.eth.call({
+  to: '0x0000000000000000000000000000000000001000',
+  data: '0x9de70258'
+}, 'latest');
+
+const validators = web3.eth.abi.decodeParameter('address[]', result);
+console.log('Active validators:', validators);
+console.log('Total count:', validators.length);
+
+// Method 2: Using contract instance (better)
+const abi = JSON.parse(await web3.getSystemContractABI());
+const contract = new web3.eth.Contract(
+  abi,
+  '0x0000000000000000000000000000000000001000'
+);
+
+const validators = await contract.methods.getActiveValidators().call();
+console.log('Active validators:', validators);
+```
+
+```javascript ethers.js
+const { ethers } = require('ethers');
+
+const provider = new ethers.JsonRpcProvider('https://rpc.fene.app');
+
+// Get ABI and create contract
+const abiJson = await provider.send('fenine_getSystemContractABI', []);
+const abi = JSON.parse(abiJson);
+
+const contract = new ethers.Contract(
+  '0x0000000000000000000000000000000000001000',
+  abi,
+  provider
+);
+
+const validators = await contract.getActiveValidators();
+console.log('Active validators:', validators);
+console.log('Total count:', validators.length);
+```
+
+```python Python
+from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider('https://rpc.fene.app'))
+
+# Call contract
+result = w3.eth.call({
+    'to': '0x0000000000000000000000000000000000001000',
+    'data': '0x9de70258'
+}, 'latest')
+
+# Decode result
+validators = w3.codec.decode(['address[]'], result)[0]
+
+print(f'Active validators: {validators}')
+print(f'Total count: {len(validators)}')
+```
+</CodeGroup>
+
+## Response Format
+
+The raw response is ABI-encoded. After decoding:
+
+```javascript
+[
+  "0x1111111111111111111111111111111111111111",
+  "0x2222222222222222222222222222222222222222",
+  "0x3333333333333333333333333333333333333333"
+]
+```
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Monitor Network Health">
+    ```javascript
+    const constants = await web3.getContractConstants();
+    const validators = await contract.methods.getActiveValidators().call();
+    
+    console.log(`Active: ${validators.length} / ${constants.maxValidators}`);
+    
+    if (validators.length < 3) {
+      console.warn('⚠️  Low validator count - network at risk');
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Build Validator Directory">
+    ```javascript
+    const validators = await contract.methods.getActiveValidators().call();
+    
+    // Get info for each
+    const directory = await Promise.all(
+      validators.map(async (address) => {
+        const info = await contract.methods.getValidatorInfo(address).call();
+        return {
+          address,
+          selfStake: web3.utils.fromWei(info.selfStake, 'ether'),
+          totalStake: web3.utils.fromWei(info.totalStake, 'ether'),
+          commission: info.commissionRate / 100 + '%',
+          delegators: info.stakerCount
+        };
+      })
+    );
+    
+    console.table(directory);
+    ```
+  </Accordion>
+
+  <Accordion title="Check if Address is Validator">
+    ```javascript
+    const myAddress = '0x1234...';
+    const validators = await contract.methods.getActiveValidators().call();
+    
+    const isValidator = validators.some(
+      v => v.toLowerCase() === myAddress.toLowerCase()
+    );
+    
+    console.log('Is active validator:', isValidator);
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Pagination
+
+<Warning>
+This method returns ALL active validators in one call. With a max of 101 validators, this is manageable. No pagination needed.
+</Warning>
+
+## Related Methods
+
+<CardGroup cols={3}>
+  <Card title="getValidatorInfo" href="/api-reference/rpc/eth/get-validator-info">
+    Get details for specific validator
+  </Card>
+  <Card title="totalNetworkStake" href="/api-reference/rpc/eth/total-network-stake">
+    Get total staked amount
+  </Card>
+  <Card title="getCurrentEpoch" href="/api-reference/rpc/eth/get-current-epoch">
+    Get current epoch number
+  </Card>
+</CardGroup>

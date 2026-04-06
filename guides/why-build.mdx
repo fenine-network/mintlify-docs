@@ -1,0 +1,208 @@
+---
+title: 'Why Build on Fenine'
+description: 'Discover the advantages of building on Fenine Network'
+icon: 'rocket'
+---
+
+## Introduction
+
+Fenine Network provides a **high-performance, EVM-compatible blockchain** optimized for DeFi, GameFi, and enterprise applications. With 3-second block times, novel FPoS consensus, and developer-friendly tooling, Fenine offers the perfect foundation for your next blockchain project.
+
+<CardGroup cols={2}>
+  <Card title="EVM Compatible" icon="ethereum">
+    Deploy Solidity contracts without modifications
+  </Card>
+  <Card title="3-Second Finality" icon="bolt">
+    18-second probabilistic finality for fast UX
+  </Card>
+  <Card title="Low Gas Fees" icon="dollar-sign">
+    Transactions cost fractions of a penny
+  </Card>
+  <Card title="Unique Incentives" icon="network-wired">
+    8-level proximity rewards for ecosystem growth
+  </Card>
+</CardGroup>
+
+## Key Advantages
+
+### 1. Blazing Fast Performance
+
+Fenine delivers enterprise-grade throughput:
+
+- **Block Time**: 3 seconds (4x faster than Ethereum)
+- **Finality**: 18 seconds (42x faster than Ethereum)  
+- **TPS**: ~476 for transfers, ~154 for ERC20
+- **Gas Limit**: 30M per block (2x Ethereum)
+
+### 2. Ultra-Low Costs
+
+Gas fees are **99% cheaper** than Ethereum:
+
+| Operation | Ethereum (50 gwei) | Fenine (1 gwei) | Savings |
+|-----------|-------------------|-----------------|---------|
+| Transfer | $2.62 | $0.05 | 98.1% |
+| ERC20 Transfer | $8.12 | $0.16 | 98.0% |
+| Uniswap Swap | $18.75 | $0.38 | 98.0% |
+
+### 3. Full EVM Compatibility
+
+**Zero migration effort** for Ethereum developers:
+
+✅ All Ethereum opcodes  
+✅ EIP-1559 fee market  
+✅ Solidity 0.8.x  
+✅ Hardhat, Foundry, Remix  
+✅ ethers.js, web3.js, viem
+
+### 4. Unique Incentive Model
+
+**8-level proximity rewards** create viral growth mechanics:
+
+- Earn base APY: 10%
+- Plus 7% from direct referrals
+- Plus 5% from level-2 referrals
+- Up to 8 levels deep → **12-15% total APY**
+
+### 5. Deflationary Economics
+
+Dual burn mechanisms:
+
+- **EIP-1559 burn**: Base fee burned every block
+- **Tax burn**: 50% of staking tax destroyed
+- **Threshold**: Network becomes deflationary at 67 gwei base fee
+
+## What You Can Build
+
+<CardGroup cols={3}>
+  <Card title="DeFi Protocols" icon="coins" href="/guides/defi-development">
+    DEX, lending, derivatives, yield aggregators
+  </Card>
+  
+  <Card title="NFT & Gaming" icon="gamepad" href="/guides/nft-gaming">
+    Marketplaces, GameFi, play-to-earn, metaverse
+  </Card>
+  
+  <Card title="Enterprise Apps" icon="building" href="/guides/enterprise">
+    Payments, supply chain, staking services
+  </Card>
+  
+  <Card title="Infrastructure" icon="server" href="/guides/infrastructure">
+    Bridges, oracles, indexers, wallets
+  </Card>
+  
+  <Card title="Social dApps" icon="users" href="/guides/social">
+    Identity, governance, DAOs, communities
+  </Card>
+  
+  <Card title="Tools & SDKs" icon="wrench" href="/guides/tooling">
+    Libraries, CLIs, developer utilities
+  </Card>
+</CardGroup>
+
+## Developer Resources
+
+<CardGroup cols={2}>
+  <Card title="Technical Specs" icon="book" href="/guides/technical-advantages">
+    Performance benchmarks and architecture
+  </Card>
+  
+  <Card title="Unique Features" icon="star" href="/guides/unique-features">
+    Proximity rewards, NFT passport, system contracts
+  </Card>
+  
+  <Card title="Migration Guide" icon="arrow-right" href="/guides/migration">
+    Move from Ethereum, BSC, or other EVM chains
+  </Card>
+  
+  <Card title="Grant Programs" icon="money-bill" href="/guides/grants">
+    Up to $250K funding for your project
+  </Card>
+</CardGroup>
+
+## Quick Comparison
+
+| Feature | Fenine | Ethereum | BNB Chain | Polygon |
+|---------|--------|----------|-----------|---------|
+| Block Time | **3s** | 12s | 3s | 2s |
+| Finality | **18s** | 12.8m | 18s | 128s |
+| TPS | **476** | 24 | 160 | 150 |
+| Gas Price | **1 gwei** | 50 gwei | 5 gwei | 100 gwei |
+| EVM Compatible | ✅ | ✅ | ✅ | ✅ |
+| Proximity Rewards | **✅** | ❌ | ❌ | ❌ |
+
+## Get Started
+
+<Steps>
+  <Step title="Set Up Environment">
+    Install Hardhat or Foundry with Fenine network config
+    
+    ```bash
+    npm install --save-dev hardhat
+    npx hardhat init
+    ```
+  </Step>
+
+  <Step title="Configure Network">
+    Add Fenine to your config:
+    
+    ```javascript
+    networks: {
+      fenine: {
+        url: "https://vault-api.fene.app",
+        chainId: 5881,
+        accounts: [process.env.PRIVATE_KEY]
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Deploy Contract">
+    Deploy your Solidity contracts:
+    
+    ```bash
+    npx hardhat run scripts/deploy.js --network fenine
+    ```
+  </Step>
+
+  <Step title="Verify & Launch">
+    Verify on explorer and launch your dApp
+    
+    ```bash
+    npx hardhat verify --network fenine CONTRACT_ADDRESS
+    ```
+  </Step>
+</Steps>
+
+## Community & Support
+
+<CardGroup cols={3}>
+  <Card title="Developer Discord" icon="discord" href="https://discord.gg/fenines">
+    Get real-time help from developers
+  </Card>
+  
+  <Card title="GitHub" icon="github" href="https://github.com/fenines-network">
+    Browse open source code and examples
+  </Card>
+  
+  <Card title="Developer Docs" icon="book" href="/architecture/overview">
+    Deep dive into technical architecture
+  </Card>
+  
+  <Card title="Block Explorer" icon="magnifying-glass" href="https://explorer.fene.app">
+    View network activity
+  </Card>
+  
+  <Card title="Faucet" icon="faucet" href="https://faucet.fene.app">
+    Get testnet FEN tokens
+  </Card>
+  
+  <Card title="Email Support" icon="envelope" href="mailto:developers@fene.network">
+    Direct email assistance
+  </Card>
+</CardGroup>
+
+---
+
+<Note>
+**Ready to build?** Start with our [Quickstart Guide](/guides/quickstart) or explore [Technical Advantages](/guides/technical-advantages) for in-depth specs.
+</Note>

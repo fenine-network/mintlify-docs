@@ -1,0 +1,527 @@
+---
+title: 'Quick Reference'
+description: 'Common queries, function selectors, and code snippets'
+icon: 'bolt'
+---
+
+## System Contract Addresses
+
+```javascript
+const addresses = {
+  FenineSystem:      '0x0000000000000000000000000000000000001000',
+  NFTPassport:       '0x0000000000000000000000000000000000001001',
+  TaxManager:        '0x0000000000000000000000000000000000001002',
+  RewardManager:     '0x0000000000000000000000000000000000001003'
+};
+```
+
+---
+
+## Function Selectors
+
+### FenineSystem
+
+| Function | Selector | Parameters |
+|----------|----------|------------|
+| `getActiveValidators()` | `0x9de70258` | - |
+| `getValidatorInfo(address)` | `0xb5d89627` | address |
+| `getDelegatorInfo(address,address)` | `0xa993683f` | address, address |
+| `getValidatorStakers(address)` | - | address |
+| `totalNetworkStake()` | `0x635c8637` | - |
+| `getCurrentEpoch()` | - | - |
+| `getProximityConfig()` | - | - |
+| `getEstimatedDelegatorReward(address,address)` | - | address, address |
+| `getNextEpochReward()` | - | - |
+
+### NFTPassport
+
+| Function | Selector | Parameters |
+|----------|----------|------------|
+| `isWhitelisted(address,address)` | - | address, address |
+| `getKeyInfo(bytes32)` | - | bytes32 |
+| `getValidatorKeys(address)` | - | address |
+| `getValidatorStats(address)` | - | address |
+| `hashReferralCode(string)` | - | string |
+
+### TaxManager
+
+| Function | Selector | Parameters |
+|----------|----------|------------|
+| `computeTax(address,uint256)` | - | address, uint256 |
+| `previewTax(address,uint256)` | - | address, uint256 |
+| `getConfig()` | - | - |
+| `getTaxRate()` | - | - |
+| `isTaxExempt(address)` | - | address |
+
+---
+
+## Common Queries
+
+<Tabs>
+  <Tab title="Get Active Validators">
+    <CodeGroup>
+    ```bash cURL
+    curl -X POST https://rpc.fene.app \
+      -H "Content-Type: application/json" \
+      -d '{
+        "jsonrpc": "2.0",
+        "method": "eth_call",
+        "params": [{
+          "to": "0x0000000000000000000000000000000000001000",
+          "data": "0x9de70258"
+        }, "latest"],
+        "id": 1
+      }'
+    ```
+
+    ```javascript JavaScript
+    const result = await web3.eth.call({
+      to: '0x0000000000000000000000000000000000001000',
+      data: '0x9de70258'
+    }, 'latest');
+    
+    const validators = web3.eth.abi.decodeParameter('address[]', result);
+    ```
+    </CodeGroup>
+  </Tab>
+
+  <Tab title="Get Validator Info">
+    <CodeGroup>
+    ```javascript
+    // Encode call
+    const data = web3.eth.abi.encodeFunctionCall({
+      name: 'getValidatorInfo',
+      type: 'function',
+      inputs: [{ type: 'address', name: 'vaAddr' }]
+    }, [validatorAddress]);
+    
+    // Query
+    const result = await web3.eth.call({
+      to: '0x0000000000000000000000000000000000001000',
+      data: data
+    }, 'latest');
+    
+    // Decode
+    const [status, selfStake, totalStake, commission, reward, count] = 
+      web3.eth.abi.decodeParameters([
+        'uint8', 'uint256', 'uint256', 
+        'uint256', 'uint256', 'uint256'
+      ], result);
+    ```
+    </CodeGroup>
+  </Tab>
+
+  <Tab title="Total Network Stake">
+    <CodeGroup>
+    ```javascript
+    const result = await web3.eth.call({
+      to: '0x0000000000000000000000000000000000001000',
+      data: '0x635c8637'
+    }, 'latest');
+    
+    const totalStake = web3.eth.abi.decodeParameter('uint256', result);
+    console.log('Total:', web3.utils.fromWei(totalStake, 'ether'), 'FEN');
+    ```
+    </CodeGroup>
+  </Tab>
+
+  <Tab title="Check Whitelist">
+    <CodeGroup>
+    ```javascript
+    const systemContract = new web3.eth.Contract(systemABI, systemAddress);
+    
+    const data = web3.eth.abi.encodeFunctionCall({
+      name: 'isWhitelisted',
+      type: 'function',
+      inputs: [
+        { type: 'address', name: 'delegator' },
+        { type: 'address', name: 'validator' }
+      ]
+    }, [delegatorAddress, validatorAddress]);
+    
+    const result = await web3.eth.call({
+      to: '0x0000000000000000000000000000000000001001',
+      data: data
+    }, 'latest');
+    
+    const isWhitelisted = web3.eth.abi.decodeParameter('bool', result);
+    ```
+    </CodeGroup>
+  </Tab>
+</Tabs>
+
+---
+
+## Setup Contract Instances
+
+<Tabs>
+  <Tab title="Web3.js">
+    ```javascript
+    const Web3 = require('web3');
+    const web3 = new Web3('https://rpc.fene.app');
+    
+    // Get ABIs
+    const systemABI = JSON.parse(
+      await web3.eth.extend({
+        methods: [{ 
+          name: 'getSystemContractABI',
+          call: 'fenine_getSystemContractABI',
+          params: 0
+        }]
+      }).getSystemContractABI()
+    );
+    
+    const nftPassportABI = JSON.parse(
+      await web3.eth.extend({
+        methods: [{ 
+          name: 'getNFTPassportABI',
+          call: 'fenine_getNFTPassportABI',
+          params: 0
+        }]
+      }).getNFTPassportABI()
+    );
+    
+    // Create instances
+    const systemContract = new web3.eth.Contract(
+      systemABI,
+      '0x0000000000000000000000000000000000001000'
+    );
+    
+    const nftPassport = new web3.eth.Contract(
+      nftPassportABI,
+      '0x0000000000000000000000000000000000001001'
+    );
+    
+    // Use them
+    const validators = await systemContract.methods.getActiveValidators().call();
+    const isWhitelisted = await nftPassport.methods.isWhitelisted(
+      delegatorAddress,
+      validatorAddress
+    ).call();
+    ```
+  </Tab>
+
+  <Tab title="ethers.js">
+    ```javascript
+    const { ethers } = require('ethers');
+    
+    const provider = new ethers.JsonRpcProvider('https://rpc.fene.app');
+    
+    // Get ABIs
+    const systemABI = JSON.parse(
+      await provider.send('fenine_getSystemContractABI', [])
+    );
+    
+    const nftPassportABI = JSON.parse(
+      await provider.send('fenine_getNFTPassportABI', [])
+    );
+    
+    // Create instances
+    const systemContract = new ethers.Contract(
+      '0x0000000000000000000000000000000000001000',
+      systemABI,
+      provider
+    );
+    
+    const nftPassport = new ethers.Contract(
+      '0x0000000000000000000000000000000000001001',
+      nftPassportABI,
+      provider
+    );
+    
+    // Use them
+    const validators = await systemContract.getActiveValidators();
+    const isWhitelisted = await nftPassport.isWhitelisted(
+      delegatorAddress,
+      validatorAddress
+    );
+    ```
+  </Tab>
+
+  <Tab title="viem">
+    ```javascript
+    import { createPublicClient, http } from 'viem';
+    
+    const client = createPublicClient({
+      transport: http('https://rpc.fene.app')
+    });
+    
+    // Get ABI via custom RPC
+    const systemABI = JSON.parse(
+      await client.request({
+        method: 'fenine_getSystemContractABI',
+        params: []
+      })
+    );
+    
+    // Read contract
+    const validators = await client.readContract({
+      address: '0x0000000000000000000000000000000000001000',
+      abi: systemABI,
+      functionName: 'getActiveValidators'
+    });
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Conversion Helpers
+
+```javascript
+// Wei ↔ FEN
+const weiToFene = (wei) => web3.utils.fromWei(wei, 'ether');
+const feneToWei = (fene) => web3.utils.toWei(fene, 'ether');
+
+// Basis Points ↔ Percentage
+const bpsToPercent = (bps) => bps / 100;
+const percentToBps = (percent) => percent * 100;
+
+// Block Time Estimation (3s average)
+const blocksPerHour = 1200;
+const blocksPerDay = 28800;
+const blocksPerWeek = 201600;
+
+// Epoch Calculation
+const EPOCH_BLOCKS = 200;
+const getCurrentEpoch = (blockNumber) => Math.floor(blockNumber / EPOCH_BLOCKS);
+const blocksUntilNextEpoch = (blockNumber) => EPOCH_BLOCKS - (blockNumber % EPOCH_BLOCKS);
+const estimateEpochTime = (blockNumber) => {
+  const blocksLeft = blocksUntilNextEpoch(blockNumber);
+  return blocksLeft * 3; // seconds
+};
+
+// Validator Status
+const VA_STATUS = {
+  0: 'NOT_EXIST',
+  1: 'CREATED',
+  2: 'STAKED',
+  3: 'VALIDATED',
+  4: 'UNSTAKED'
+};
+
+// Delegator Status
+const DC_STATUS = {
+  0: 'NOT_EXIST',
+  1: 'ACTIVE',
+  2: 'UNSTAKING'
+};
+
+// Usage
+const currentBlock = await web3.eth.getBlockNumber();
+console.log('Current epoch:', getCurrentEpoch(currentBlock));
+console.log('Next epoch in:', estimateEpochTime(currentBlock), 'seconds');
+```
+
+---
+
+## Monitor Epoch Changes
+
+```javascript
+async function monitorEpochs() {
+  const systemContract = new web3.eth.Contract(systemABI, systemAddress);
+  
+  let lastEpoch = 0;
+  
+  setInterval(async () => {
+    const currentBlock = await web3.eth.getBlockNumber();
+    const currentEpoch = Math.floor(currentBlock / 200);
+    
+    if (currentEpoch > lastEpoch) {
+      console.log('=== NEW EPOCH ===');
+      console.log('Epoch:', currentEpoch);
+      console.log('Block:', currentBlock);
+      
+      // Get updated validator set
+      const validators = await systemContract.methods
+        .getActiveValidators()
+        .call();
+      
+      console.log('Active validators:', validators.length);
+      
+      // Get network stats
+      const totalStake = await systemContract.methods
+        .totalNetworkStake()
+        .call();
+      
+      console.log('Total staked:', web3.utils.fromWei(totalStake, 'ether'), 'FEN');
+      
+      lastEpoch = currentEpoch;
+    }
+  }, 3000); // Check every 3 seconds (1 block)
+}
+
+monitorEpochs();
+```
+
+---
+
+## Complete Validator Setup
+
+```javascript
+async function becomeValidator(validatorAddress, privateKey) {
+  const account = web3.eth.accounts.privateKeyToAccount(privateKey);
+  web3.eth.accounts.wallet.add(account);
+  
+  const systemContract = new web3.eth.Contract(systemABI, systemAddress);
+  
+  console.log('Step 1: Register');
+  await systemContract.methods.registerValidator(
+    validatorAddress,
+    'MyValidator',
+    '',
+    'Professional validator service',
+    500 // 5% commission
+  ).send({ from: validatorAddress });
+  
+  console.log('Step 2: Stake 10,000 FEN');
+  await systemContract.methods.stakeValidator().send({
+    from: validatorAddress,
+    value: web3.utils.toWei('10000', 'ether'),
+    gas: 300000
+  });
+  
+  console.log('Step 3: Wait for epoch activation');
+  const currentBlock = await web3.eth.getBlockNumber();
+  const blocksUntilEpoch = 200 - (currentBlock % 200);
+  const estimatedTime = blocksUntilEpoch * 3;
+  
+  console.log(`Activation in ~${estimatedTime} seconds (${blocksUntilEpoch} blocks)`);
+  
+  // Wait for activation
+  await new Promise(resolve => setTimeout(resolve, estimatedTime * 1000));
+  
+  // Verify
+  const info = await systemContract.methods.getValidatorInfo(validatorAddress).call();
+  console.log('Status:', VA_STATUS[info.status]);
+  
+  if (info.status == 3) {
+    console.log('✓ Successfully activated as validator!');
+  }
+}
+```
+
+---
+
+## Complete Delegation Flow
+
+```javascript
+async function delegateToValidator(delegatorAddress, validatorAddress, privateKey) {
+  const account = web3.eth.accounts.privateKeyToAccount(privateKey);
+  web3.eth.accounts.wallet.add(account);
+  
+  const systemContract = new web3.eth.Contract(systemABI, systemAddress);
+  const nftPassport = new web3.eth.Contract(nftPassportABI, nftPassportAddress);
+  
+  // Step 1: Check whitelist
+  console.log('Checking whitelist...');
+  const isWhitelisted = await nftPassport.methods.isWhitelisted(
+    delegatorAddress,
+    validatorAddress
+  ).call();
+  
+  if (!isWhitelisted) {
+    console.log('❌ Not whitelisted. Need referral key from validator.');
+    return;
+  }
+  
+  // Step 2: Check validator status
+  const vaInfo = await systemContract.methods.getValidatorInfo(validatorAddress).call();
+  if (vaInfo.status != 3) {
+    console.log('❌ Validator not active');
+    return;
+  }
+  
+  // Step 3: Stake
+  console.log('Staking 1,000 FEN...');
+  await systemContract.methods.stakeToValidator(validatorAddress).send({
+    from: delegatorAddress,
+    value: web3.utils.toWei('1000', 'ether'),
+    gas: 300000
+  });
+  
+  console.log('✓ Successfully staked!');
+  
+  // Step 4: Monitor rewards
+  setInterval(async () => {
+    const estimate = await systemContract.methods.getEstimatedDelegatorReward(
+      delegatorAddress,
+      validatorAddress
+    ).call();
+    
+    console.log('Estimated rewards:', {
+      pending: web3.utils.fromWei(estimate.pending, 'ether'),
+      afterProximity: web3.utils.fromWei(estimate.afterProximity, 'ether'),
+      afterTax: web3.utils.fromWei(estimate.afterTax, 'ether')
+    });
+  }, 60000); // Check every minute
+}
+```
+
+---
+
+## Network Constants
+
+```javascript
+const NETWORK = {
+  CHAIN_ID: 'TBD',
+  BLOCK_TIME: 3, // seconds
+  EPOCH_LENGTH: 200, // blocks
+  EPOCH_TIME: 600, // seconds (10 minutes)
+  
+  MAX_VALIDATORS: 101,
+  MIN_VA_STAKE: '10000', // FEN
+  MIN_DC_STAKE: '1000',  // FEN
+  
+  VA_LOCK_PERIOD: 50000,  // blocks (~3.5 days)
+  DC_LOCK_PERIOD: 25000,  // blocks (~1.75 days)
+  
+  DEFAULT_COMMISSION: 500,  // 5%
+  MAX_COMMISSION: 1000,     // 10%
+  
+  PROXIMITY_LEVELS: 8,
+  PROXIMITY_TOTAL_BPS: 3000 // 30%
+};
+```
+
+---
+
+## Error Handling
+
+```javascript
+try {
+  await systemContract.methods.stakeValidator().send({
+    from: validatorAddress,
+    value: web3.utils.toWei('10000', 'ether')
+  });
+} catch (error) {
+  if (error.message.includes('Invalid status')) {
+    console.log('Must register first');
+  } else if (error.message.includes('Minimum 10k required')) {
+    console.log('Need at least 10,000 FEN');
+  } else if (error.message.includes('paused')) {
+    console.log('Contract is paused');
+  } else {
+    console.error('Error:', error.message);
+  }
+}
+```
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="RPC Methods" icon="server" href="/api-reference/rpc/overview">
+    Detailed RPC endpoint documentation
+  </Card>
+  <Card title="Smart Contracts" icon="file-contract" href="/api-reference/contracts/fenine-system">
+    Full contract reference
+  </Card>
+  <Card title="Web3 Examples" icon="code" href="/api-reference/examples/web3js">
+    Complete integration examples
+  </Card>
+  <Card title="API Introduction" icon="book" href="/api-reference/introduction">
+    Back to API overview
+  </Card>
+</CardGroup>

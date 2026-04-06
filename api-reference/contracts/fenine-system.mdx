@@ -1,0 +1,873 @@
+---
+title: 'FenineSystem Contract'
+description: 'Core FPoS validator and delegation management contract'
+icon: 'file-contract'
+---
+
+## Overview
+
+The FenineSystem contract is the heart of Fenines Network's FPoS (Finality Proof of Stake) consensus. It manages validator registration, staking, delegation, and reward distribution through a unique proximity-based system.
+
+<Info>
+**Contract Address**: `0x0000000000000000000000000000000000001000` (System Contract)
+</Info>
+
+## Architecture
+
+<AccordionGroup>
+  <Accordion title="Validator Lifecycle">
+    ```
+    NOT_EXIST → CREATED → STAKED → VALIDATED → UNSTAKED → CREATED
+                    ↓         ↓         ↓
+               Register   Stake    Activated
+    ```
+    
+    - **NOT_EXIST**: Address has never registered
+    - **CREATED**: Registered with metadata, not yet staked
+    - **STAKED**: Staked ≥10,000 FEN, waiting for epoch activation
+    - **VALIDATED**: Active validator, earning rewards
+    - **UNSTAKED**: Initiated unstake, in lock period
+  </Accordion>
+
+  <Accordion title="Proximity Reward System">
+    Fenines implements an 8-level proximity (referral) system where:
+    
+    - When a delegator claims rewards, a portion goes to their uplines (previous stakers to the same validator)
+    - Default distribution: 30% of rewards distributed across 8 levels
+    - Per-level allocation: `[7%, 5%, 4%, 3.5%, 3%, 2.5%, 2.5%, 2.5%]`
+    - Remainder split 50/50 between claimer and validator
+    - Anti-Sybil: Minimum stake requirements increase per level
+  </Accordion>
+
+  <Accordion title="Epoch System">
+    - **Epoch Length**: 200 blocks (~10 minutes at 3s block time)
+    - **System Transactions**: Executed automatically at block % 200 == 0
+      1. `updateValidatorCandidates()` - Activate STAKED → VALIDATED
+      2. `distributeBlockReward()` - Distribute accumulated rewards
+    - **Validator Set Updates**: Only at epoch boundaries
+  </Accordion>
+</AccordionGroup>
+
+## Constants
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `MAX_VALIDATORS` | 101 | Maximum active validators |
+| `MIN_VA_STAKE` | 10,000 FEN | Minimum validator self-stake |
+| `MIN_DC_STAKE` | 1,000 FEN | Minimum delegator stake |
+| `VA_LOCK_PERIOD` | 50,000 blocks | ~7 days unstake lock |
+| `DC_LOCK_PERIOD` | 25,000 blocks | ~3.5 days unstake lock |
+| `DEFAULT_COMMISSION` | 500 (5%) | Default commission rate |
+| `MAX_COMMISSION` | 1000 (10%) | Maximum commission rate |
+| `BLOCK_EPOCH` | 200 | Blocks per epoch |
+| `PROXIMITY_DEPTH` | 8 | Proximity levels |
+
+---
+
+## Validator Functions
+
+### registerValidator
+
+Register as a validator (expression of intent).
+
+```solidity
+function registerValidator(
+    address payable rewardAddress,
+    string calldata moniker,
+    string calldata phoneNumber,
+    string calldata details,
+    uint256 commissionRate
+) external returns (bool)
+```
+
+<ParamField path="rewardAddress" type="address payable" required>
+  Address to receive rewards (can differ from msg.sender)
+</ParamField>
+
+<ParamField path="moniker" type="string" required>
+  Validator name/identifier (1-128 characters)
+</ParamField>
+
+<ParamField path="phoneNumber" type="string">
+  Contact phone number (optional)
+</ParamField>
+
+<ParamField path="details" type="string">
+  Additional metadata (optional)
+</ParamField>
+
+<ParamField path="commissionRate" type="uint256" required>
+  Commission in basis points (500-1000 = 5-10%)
+</ParamField>
+
+<CodeGroup>
+```javascript Web3.js
+const tx = await systemContract.methods.registerValidator(
+  rewardAddress,
+  'MyValidator',
+  '+1234567890',
+  'Best validator in town',
+  500 // 5% commission
+).send({ from: validatorAddress });
+```
+
+```javascript ethers.js
+const tx = await systemContract.registerValidator(
+  rewardAddress,
+  'MyValidator',
+  '+1234567890',
+  'Best validator in town',
+  500
+);
+await tx.wait();
+```
+
+```solidity Solidity
+IFenineSystem(SYSTEM_CONTRACT).registerValidator(
+    msg.sender,
+    "MyValidator",
+    "",
+    "",
+    500
+);
+```
+</CodeGroup>
+
+<Warning>
+You must register before staking. Status transitions: `NOT_EXIST → CREATED`
+</Warning>
+
+---
+
+### stakeValidator
+
+Stake as validator (minimum 10,000 FEN).
+
+```solidity
+function stakeValidator() external payable returns (bool)
+```
+
+<CodeGroup>
+```javascript Web3.js
+const stakeAmount = web3.utils.toWei('10000', 'ether');
+
+const tx = await systemContract.methods.stakeValidator().send({
+  from: validatorAddress,
+  value: stakeAmount
+});
+```
+
+```javascript ethers.js
+const tx = await systemContract.stakeValidator({
+  value: ethers.parseEther('10000')
+});
+await tx.wait();
+```
+</CodeGroup>
+
+**Requirements:**
+- Status must be `CREATED` or `UNSTAKED`
+- `msg.value >= 10,000 FEN`
+- Contract not paused
+
+**Effects:**
+- Adds to `selfStake` and `totalStake`
+- Status → `STAKED`
+- Added to `validatorCandidates` array
+- Will be activated at next epoch
+
+---
+
+### addValidatorStake
+
+Add more stake to existing validator (top-up).
+
+```solidity
+function addValidatorStake() external payable returns (bool)
+```
+
+<CodeGroup>
+```javascript
+const additionalStake = web3.utils.toWei('5000', 'ether');
+
+await systemContract.methods.addValidatorStake().send({
+  from: validatorAddress,
+  value: additionalStake
+});
+```
+</CodeGroup>
+
+**Requirements:**
+- Status must be `STAKED` or `VALIDATED`
+- `msg.value > 0`
+
+**Effects:**
+- Increases `selfStake` and `totalStake`
+- Does NOT reset stake age or status
+
+---
+
+### unstakeValidator
+
+Initiate validator unstake process.
+
+```solidity
+function unstakeValidator() external returns (bool)
+```
+
+<CodeGroup>
+```javascript
+await systemContract.methods.unstakeValidator().send({
+  from: validatorAddress
+});
+```
+</CodeGroup>
+
+**Requirements:**
+- Status must be `STAKED` or `VALIDATED`
+- Not already unstaking
+
+**Effects:**
+- Status → `UNSTAKED`
+- Sets `unstakeBlock = current block`
+- Removed from `activeValidatorSet`
+- Removed from `validatorCandidates`
+- Lock period: 50,000 blocks (~7 days)
+
+---
+
+### withdrawValidatorStake
+
+Withdraw staked FEN after lock period.
+
+```solidity
+function withdrawValidatorStake() external returns (bool)
+```
+
+<CodeGroup>
+```javascript
+await systemContract.methods.withdrawValidatorStake().send({
+  from: validatorAddress
+});
+```
+</CodeGroup>
+
+**Requirements:**
+- `unstakeBlock > 0` (unstake initiated)
+- `block.number >= unstakeBlock + 50000` (lock period passed)
+- `selfStake > 0`
+
+**Effects:**
+- Transfers `selfStake` to validator
+- Resets `selfStake = 0`
+- Status → `CREATED`
+- Can re-stake later
+
+---
+
+### claimValidatorReward
+
+Claim accumulated validator rewards.
+
+```solidity
+function claimValidatorReward() external returns (bool)
+```
+
+<CodeGroup>
+```javascript
+// Check rewards first
+const info = await systemContract.methods.getValidatorInfo(validatorAddress).call();
+console.log('Claimable:', web3.utils.fromWei(info.claimableReward, 'ether'), 'FEN');
+
+// Claim
+await systemContract.methods.claimValidatorReward().send({
+  from: validatorAddress
+});
+```
+</CodeGroup>
+
+**Requirements:**
+- Status must be `VALIDATED`
+- `claimableReward > 0`
+
+**Effects:**
+- Transfers rewards to `rewardAddress`
+- Applies tax via TaxManager
+- Resets `claimableReward = 0`
+
+**Tax Flow:**
+```
+Gross Reward
+  ├─> Tax (burn + dev)
+  └─> Net → rewardAddress
+```
+
+---
+
+### updateValidatorMetadata
+
+Update validator information.
+
+```solidity
+function updateValidatorMetadata(
+    string calldata moniker,
+    string calldata phoneNumber,
+    string calldata details
+) external returns (bool)
+```
+
+<CodeGroup>
+```javascript
+await systemContract.methods.updateValidatorMetadata(
+  'NewValidatorName',
+  '+9876543210',
+  'Updated description'
+).send({ from: validatorAddress });
+```
+</CodeGroup>
+
+---
+
+### updateCommissionRate
+
+Update commission rate (only before activation).
+
+```solidity
+function updateCommissionRate(uint256 newRate) external returns (bool)
+```
+
+<CodeGroup>
+```javascript
+await systemContract.methods.updateCommissionRate(750).send({
+  from: validatorAddress
+}); // Set to 7.5%
+```
+</CodeGroup>
+
+<Warning>
+Can only update when status is `STAKED` (not yet activated). Commission is locked after activation.
+</Warning>
+
+---
+
+## Delegator Functions
+
+### stakeToValidator
+
+Stake FEN to a validator as a delegator.
+
+```solidity
+function stakeToValidator(address vaAddr) external payable returns (bool)
+```
+
+<ParamField path="vaAddr" type="address" required>
+  Validator address to stake to
+</ParamField>
+
+<CodeGroup>
+```javascript Web3.js
+const validatorAddress = '0x1234...';
+const stakeAmount = web3.utils.toWei('1000', 'ether');
+
+await systemContract.methods.stakeToValidator(validatorAddress).send({
+  from: delegatorAddress,
+  value: stakeAmount
+});
+```
+
+```javascript ethers.js
+const tx = await systemContract.stakeToValidator(validatorAddress, {
+  value: ethers.parseEther('1000')
+});
+await tx.wait();
+```
+</CodeGroup>
+
+**Requirements:**
+- Validator status must be `VALIDATED`
+- `msg.value >= 1,000 FEN`
+- Not currently unstaking
+- **Whitelisted** via NFTPassport contract
+
+**Effects:**
+- First-time: Added to validator's `stakers` array (proximity position)
+- Increases `stakeAmount` and validator's `totalStake`
+- Starts earning rewards
+
+<Note>
+**Proximity Position**: Your position in the stakers array determines proximity rewards. Earlier stakers are deeper in the chain and receive rewards from later stakers.
+</Note>
+
+---
+
+### addDelegatorStake
+
+Add more stake to existing delegation.
+
+```solidity
+function addDelegatorStake(address vaAddr) external payable returns (bool)
+```
+
+<CodeGroup>
+```javascript
+await systemContract.methods.addDelegatorStake(validatorAddress).send({
+  from: delegatorAddress,
+  value: web3.utils.toWei('500', 'ether')
+});
+```
+</CodeGroup>
+
+---
+
+### unstakeDelegator
+
+Initiate delegator unstake process.
+
+```solidity
+function unstakeDelegator(address vaAddr) external returns (bool)
+```
+
+<CodeGroup>
+```javascript
+await systemContract.methods.unstakeDelegator(validatorAddress).send({
+  from: delegatorAddress
+});
+```
+</CodeGroup>
+
+**Requirements:**
+- `stakeAmount > 0`
+- Not already unstaking
+
+**Effects:**
+- Removed from `stakers` array (proximity chain)
+- Status → `UNSTAKING`
+- Sets `unstakeBlock = current block`
+- Lock period: 25,000 blocks (~3.5 days)
+- Pending rewards preserved
+
+---
+
+### withdrawDelegatorStake
+
+Withdraw delegated stake after lock period.
+
+```solidity
+function withdrawDelegatorStake(address vaAddr) external returns (bool)
+```
+
+<CodeGroup>
+```javascript
+// Check if lock period passed
+const info = await systemContract.methods.getDelegatorInfo(
+  delegatorAddress,
+  validatorAddress
+).call();
+
+const currentBlock = await web3.eth.getBlockNumber();
+const lockPeriod = 25000;
+
+if (currentBlock >= info.unstakeBlock + lockPeriod) {
+  await systemContract.methods.withdrawDelegatorStake(validatorAddress).send({
+    from: delegatorAddress
+  });
+}
+```
+</CodeGroup>
+
+---
+
+### claimDelegatorReward
+
+Claim rewards with proximity distribution.
+
+```solidity
+function claimDelegatorReward(address vaAddr) external returns (bool)
+```
+
+<CodeGroup>
+```javascript
+// Estimate rewards first
+const estimate = await systemContract.methods.getEstimatedDelegatorReward(
+  delegatorAddress,
+  validatorAddress
+).call();
+
+console.log('Pending:', web3.utils.fromWei(estimate.pending, 'ether'));
+console.log('After proximity:', web3.utils.fromWei(estimate.afterProximity, 'ether'));
+console.log('After tax:', web3.utils.fromWei(estimate.afterTax, 'ether'));
+
+// Claim
+await systemContract.methods.claimDelegatorReward(validatorAddress).send({
+  from: delegatorAddress
+});
+```
+</CodeGroup>
+
+**Reward Flow:**
+```
+Pending Reward (100%)
+  ├─> Proximity Distribution (30% default)
+  │     ├─> Level 1 upline (7%)
+  │     ├─> Level 2 upline (5%)
+  │     └─> ... 8 levels
+  ├─> Residual split (if uplines ineligible)
+  │     ├─> 50% to claimer (bonus)
+  │     └─> 50% to validator
+  └─> Net to Claimer (70% + bonuses)
+        ├─> Tax (burn + dev)
+        └─> Final Amount
+```
+
+---
+
+## View Functions
+
+### getActiveValidators
+
+Get list of active validators.
+
+```solidity
+function getActiveValidators() external view returns (address[] memory)
+```
+
+<CodeGroup>
+```javascript
+const validators = await systemContract.methods.getActiveValidators().call();
+console.log('Active validators:', validators);
+```
+</CodeGroup>
+
+---
+
+### getValidatorInfo
+
+Get detailed validator information.
+
+```solidity
+function getValidatorInfo(address vaAddr) external view returns (
+    VAStatus status,
+    uint256 selfStake,
+    uint256 totalStake,
+    uint256 commissionRate,
+    uint256 claimableReward,
+    uint256 stakerCount
+)
+```
+
+<CodeGroup>
+```javascript
+const info = await systemContract.methods.getValidatorInfo(validatorAddress).call();
+
+console.log({
+  status: ['NOT_EXIST', 'CREATED', 'STAKED', 'VALIDATED', 'UNSTAKED'][info.status],
+  selfStake: web3.utils.fromWei(info.selfStake, 'ether'),
+  totalStake: web3.utils.fromWei(info.totalStake, 'ether'),
+  commission: info.commissionRate / 100 + '%',
+  claimable: web3.utils.fromWei(info.claimableReward, 'ether'),
+  delegators: info.stakerCount
+});
+```
+</CodeGroup>
+
+---
+
+### getDelegatorInfo
+
+Get delegator stake information.
+
+```solidity
+function getDelegatorInfo(address dcAddr, address vaAddr) external view returns (
+    DCStatus status,
+    uint256 stakeAmount,
+    uint256 pendingRewards,
+    uint256 joinedAt,
+    uint256 stakerIndex
+)
+```
+
+---
+
+### getEstimatedDelegatorReward
+
+Calculate estimated rewards (preview before claiming).
+
+```solidity
+function getEstimatedDelegatorReward(address dcAddr, address vaAddr) 
+    external view returns (
+        uint256 pending,
+        uint256 afterProximity,
+        uint256 afterTax
+    )
+```
+
+---
+
+### getProximityConfig
+
+Get current proximity distribution configuration.
+
+```solidity
+function getProximityConfig() external view returns (
+    uint16 totalBps,
+    uint8 depth,
+    uint16[8] memory rewardBps
+)
+```
+
+<CodeGroup>
+```javascript
+const config = await systemContract.methods.getProximityConfig().call();
+
+console.log('Total proximity:', config.totalBps / 100, '%');
+console.log('Levels:', config.depth);
+console.log('Distribution:', config.rewardBps.map(bps => bps / 100 + '%'));
+```
+</CodeGroup>
+
+---
+
+### getCurrentEpoch
+
+Get current epoch number.
+
+```solidity
+function getCurrentEpoch() external view returns (uint256)
+```
+
+---
+
+### getNextEpochReward
+
+Get pending reward pool for next epoch.
+
+```solidity
+function getNextEpochReward() external view returns (uint256)
+```
+
+---
+
+## Admin Functions
+
+<Warning>
+Admin functions are restricted to the contract admin (set during genesis). These should only be used for emergency situations or governance-approved changes.
+</Warning>
+
+### setProximityConfig
+
+Update proximity reward distribution.
+
+```solidity
+function setProximityConfig(
+    uint16 newTotalBps,
+    uint16[8] calldata newRewardBps
+) external onlyAdmin returns (bool)
+```
+
+**Requirements:**
+- Only admin can call
+- `newTotalBps <= 8700` (87% max)
+- Array must sum to `newTotalBps`
+
+---
+
+### pause / unpause
+
+Emergency pause/unpause contract (inherited from EmergencyControl).
+
+```solidity
+function pause() external onlyAdmin
+function unpause() external onlyAdmin
+```
+
+---
+
+### changeAdmin
+
+Transfer admin role (inherited from EmergencyControl, with 7-day timelock).
+
+```solidity
+function changeAdmin(address newAdmin) external onlyAdmin
+```
+
+---
+
+## Events
+
+<AccordionGroup>
+  <Accordion title="Validator Events">
+    ```solidity
+    event ValidatorRegistered(address indexed va, string moniker, uint256 timestamp)
+    event ValidatorStaked(address indexed va, uint256 amount, uint256 totalStake, uint256 timestamp)
+    event ValidatorActivated(address indexed va, uint256 indexed epochNumber)
+    event ValidatorUnstaked(address indexed va, uint256 amount, uint256 unlockBlock)
+    event ValidatorWithdrawn(address indexed va, uint256 amount)
+    event ValidatorRewardClaimed(address indexed va, uint256 gross, uint256 net, uint256 tax)
+    event MetadataUpdated(address indexed va)
+    event CommissionUpdated(address indexed va, uint256 oldRate, uint256 newRate)
+    ```
+  </Accordion>
+
+  <Accordion title="Delegator Events">
+    ```solidity
+    event DelegatorStaked(address indexed dc, address indexed va, uint256 amount, uint256 totalStake, uint256 timestamp)
+    event DelegatorUnstaked(address indexed dc, address indexed va, uint256 unlockBlock)
+    event DelegatorWithdrawn(address indexed dc, address indexed va, uint256 amount)
+    event DelegatorRewardClaimed(address indexed dc, address indexed va, uint256 gross, uint256 net, uint256 tax)
+    ```
+  </Accordion>
+
+  <Accordion title="Proximity Events">
+    ```solidity
+    event ProximityRewardsApplied(address indexed claimer, address indexed va, uint256 totalDistributed)
+    event ProximityRewardAllocated(address indexed recipient, uint256 amount, uint8 level)
+    ```
+  </Accordion>
+
+  <Accordion title="System Events">
+    ```solidity
+    event RewardDistributed(uint256 epochReward, uint256 validatorCount, uint256 indexed epochNumber, uint256 timestamp)
+    event ValidatorSetUpdated(address[] validators, uint256 indexed epochNumber)
+    event EpochProcessed(uint256 indexed blockNumber, address indexed caller, uint256 reward, bool success)
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Integration Examples
+
+<Tabs>
+  <Tab title="Become a Validator">
+    ```javascript
+    // Step 1: Register
+    await systemContract.methods.registerValidator(
+      rewardAddress,
+      'MyValidator',
+      '',
+      'Professional validator',
+      500
+    ).send({ from: validatorAddress });
+    
+    // Step 2: Stake (minimum 10,000 FEN)
+    await systemContract.methods.stakeValidator().send({
+      from: validatorAddress,
+      value: web3.utils.toWei('10000', 'ether')
+    });
+    
+    // Step 3: Wait for next epoch (automatic activation)
+    // Status will change: CREATED → STAKED → VALIDATED
+    
+    // Step 4: Monitor rewards
+    setInterval(async () => {
+      const info = await systemContract.methods.getValidatorInfo(validatorAddress).call();
+      console.log('Claimable:', web3.utils.fromWei(info.claimableReward, 'ether'));
+    }, 60000); // Check every minute
+    ```
+  </Tab>
+
+  <Tab title="Delegate to Validator">
+    ```javascript
+    // Prerequisites: Get whitelisted via NFTPassport
+    const nftPassport = new web3.eth.Contract(nftPassportABI, nftPassportAddress);
+    
+    // Check if whitelisted
+    const isWhitelisted = await nftPassport.methods.isWhitelisted(
+      delegatorAddress,
+      validatorAddress
+    ).call();
+    
+    if (!isWhitelisted) {
+      console.log('Need referral key from validator');
+      return;
+    }
+    
+    // Stake to validator
+    await systemContract.methods.stakeToValidator(validatorAddress).send({
+      from: delegatorAddress,
+      value: web3.utils.toWei('1000', 'ether')
+    });
+    
+    // Monitor rewards
+    const estimate = await systemContract.methods.getEstimatedDelegatorReward(
+      delegatorAddress,
+      validatorAddress
+    ).call();
+    
+    console.log('Estimated rewards after tax:', 
+      web3.utils.fromWei(estimate.afterTax, 'ether'), 'FEN'
+    );
+    ```
+  </Tab>
+
+  <Tab title="Claim Rewards">
+    ```javascript
+    // For Validators
+    const vaInfo = await systemContract.methods.getValidatorInfo(validatorAddress).call();
+    if (BigInt(vaInfo.claimableReward) > 0) {
+      await systemContract.methods.claimValidatorReward().send({
+        from: validatorAddress
+      });
+    }
+    
+    // For Delegators
+    const dcEstimate = await systemContract.methods.getEstimatedDelegatorReward(
+      delegatorAddress,
+      validatorAddress
+    ).call();
+    
+    if (BigInt(dcEstimate.pending) > 0) {
+      await systemContract.methods.claimDelegatorReward(validatorAddress).send({
+        from: delegatorAddress
+      });
+    }
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Security Considerations
+
+<AccordionGroup>
+  <Accordion title="Reentrancy Protection">
+    All state-changing functions that transfer ETH use the `nonReentrant` modifier to prevent reentrancy attacks.
+  </Accordion>
+
+  <Accordion title="Access Control">
+    - User functions: Anyone can call
+    - System functions: Only `block.coinbase` (consensus layer)
+    - Admin functions: Only contract admin with timelock
+  </Accordion>
+
+  <Accordion title="Anti-Sybil">
+    - Minimum stake requirements per proximity level prevent sybil attacks
+    - Stake age requirement (100 blocks minimum)
+    - Unstaking addresses cannot receive proximity rewards
+  </Accordion>
+
+  <Accordion title="Emergency Controls">
+    - Pause functionality (inherited from EmergencyControl)
+    - 7-day timelock for admin changes
+    - Emergency withdrawal capability with hooks
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="NFT Passport Contract" icon="passport" href="/api-reference/contracts/nft-passport">
+    Whitelist and referral system
+  </Card>
+  <Card title="Tax Manager Contract" icon="calculator" href="/api-reference/contracts/tax-manager">
+    Reward tax and burn mechanism
+  </Card>
+  <Card title="Integration Examples" icon="code" href="/api-reference/examples/web3js">
+    Complete integration examples
+  </Card>
+  <Card title="Quick Reference" icon="bolt" href="/api-reference/quick-reference">
+    Common queries and selectors
+  </Card>
+</CardGroup>

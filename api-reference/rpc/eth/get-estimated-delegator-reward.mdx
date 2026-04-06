@@ -1,0 +1,330 @@
+---
+title: 'getEstimatedDelegatorReward'
+description: 'Calculate estimated rewards for a delegator (with proximity & tax)'
+api: 'POST eth_call'
+---
+
+## Overview
+
+Calculates estimated rewards for a delegator, showing the breakdown **before proximity distribution**, **after proximity**, and **after tax**. This is a preview function - it doesn't modify state.
+
+## Contract Call Details
+
+<ParamField path="to" type="address" required>
+  `0x0000000000000000000000000000000000001000` (FenineSystem)
+</ParamField>
+
+<ParamField path="data" type="bytes" required>
+  Function call: `getEstimatedDelegatorReward(address,address)`
+</ParamField>
+
+<ParamField path="delegator" type="address" required>
+  The delegator address
+</ParamField>
+
+<ParamField path="validator" type="address" required>
+  The validator address
+</ParamField>
+
+## Response
+
+<ResponseField name="pending" type="uint256">
+  Raw pending rewards before any deductions (wei)
+</ResponseField>
+
+<ResponseField name="afterProximity" type="uint256">
+  Rewards after proximity distribution, including any bonus from ineligible uplines (wei)
+</ResponseField>
+
+<ResponseField name="afterTax" type="uint256">
+  Final amount delegator will receive after tax deduction (wei)
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+```javascript Web3.js
+const Web3 = require('web3');
+const web3 = new Web3('https://rpc.fene.app');
+
+const delegatorAddress = '0x1111111111111111111111111111111111111111';
+const validatorAddress = '0x2222222222222222222222222222222222222222';
+
+const abi = JSON.parse(await web3.getSystemContractABI());
+const contract = new web3.eth.Contract(
+  abi,
+  '0x0000000000000000000000000000000000001000'
+);
+
+const estimate = await contract.methods.getEstimatedDelegatorReward(
+  delegatorAddress,
+  validatorAddress
+).call();
+
+console.log('Reward Breakdown:');
+console.log('═'.repeat(50));
+console.log(`Pending (raw):        ${web3.utils.fromWei(estimate.pending, 'ether')} FEN`);
+console.log(`After proximity:      ${web3.utils.fromWei(estimate.afterProximity, 'ether')} FEN`);
+console.log(`After tax (final):    ${web3.utils.fromWei(estimate.afterTax, 'ether')} FEN`);
+
+// Calculate deductions
+const proximityDeduction = BigInt(estimate.pending) - BigInt(estimate.afterProximity);
+const taxDeduction = BigInt(estimate.afterProximity) - BigInt(estimate.afterTax);
+
+console.log('\nDeductions:');
+console.log(`Proximity paid:       ${web3.utils.fromWei(proximityDeduction.toString(), 'ether')} FEN`);
+console.log(`Tax paid:             ${web3.utils.fromWei(taxDeduction.toString(), 'ether')} FEN`);
+
+// Calculate percentages
+if (BigInt(estimate.pending) > 0n) {
+  const proximityPct = Number(proximityDeduction * 100n / BigInt(estimate.pending));
+  const taxPct = Number(taxDeduction * 100n / BigInt(estimate.afterProximity));
+  const finalPct = Number(BigInt(estimate.afterTax) * 100n / BigInt(estimate.pending));
+  
+  console.log('\nPercentages:');
+  console.log(`Proximity:            ${proximityPct.toFixed(1)}%`);
+  console.log(`Tax:                  ${taxPct.toFixed(1)}%`);
+  console.log(`You keep:             ${finalPct.toFixed(1)}%`);
+}
+```
+
+```javascript ethers.js
+const { ethers } = require('ethers');
+
+const provider = new ethers.JsonRpcProvider('https://rpc.fene.app');
+
+const delegatorAddress = '0x1111111111111111111111111111111111111111';
+const validatorAddress = '0x2222222222222222222222222222222222222222';
+
+const abiJson = await provider.send('fenine_getSystemContractABI', []);
+const abi = JSON.parse(abiJson);
+
+const contract = new ethers.Contract(
+  '0x0000000000000000000000000000000000001000',
+  abi,
+  provider
+);
+
+const [pending, afterProximity, afterTax] = 
+  await contract.getEstimatedDelegatorReward(delegatorAddress, validatorAddress);
+
+console.log('Pending:', ethers.formatEther(pending), 'FEN');
+console.log('After proximity:', ethers.formatEther(afterProximity), 'FEN');
+console.log('After tax:', ethers.formatEther(afterTax), 'FEN');
+```
+
+```python Python
+from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider('https://rpc.fene.app'))
+
+delegator_address = '0x1111111111111111111111111111111111111111'
+validator_address = '0x2222222222222222222222222222222222222222'
+
+system_contract = w3.eth.contract(
+    address='0x0000000000000000000000000000000000001000',
+    abi=system_abi
+)
+
+pending, after_proximity, after_tax = system_contract.functions.getEstimatedDelegatorReward(
+    delegator_address,
+    validator_address
+).call()
+
+print(f'Pending: {Web3.from_wei(pending, "ether")} FEN')
+print(f'After proximity: {Web3.from_wei(after_proximity, "ether")} FEN')
+print(f'After tax: {Web3.from_wei(after_tax, "ether")} FEN')
+```
+</CodeGroup>
+
+## Reward Calculation Flow
+
+```
+Raw Pending Rewards (100%)
+    ↓
+Proximity Distribution (~30%)
+    ├─> Level 1-8 uplines (if eligible)
+    └─> Residual split (50% back to claimer, 50% to validator)
+    ↓
+After Proximity (~70% + bonuses)
+    ↓
+Tax Deduction (10% default)
+    ├─> Burn share
+    └─> Dev share
+    ↓
+Final Amount (~63% + bonuses)
+```
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Check Before Claiming">
+    ```javascript
+    async function shouldClaim(delegatorAddress, validatorAddress, minAmount) {
+      const estimate = await contract.methods.getEstimatedDelegatorReward(
+        delegatorAddress,
+        validatorAddress
+      ).call();
+      
+      const finalAmount = parseFloat(web3.utils.fromWei(estimate.afterTax, 'ether'));
+      
+      if (finalAmount < minAmount) {
+        return {
+          shouldClaim: false,
+          reason: `Amount too small (${finalAmount.toFixed(4)} FEN < ${minAmount} FEN)`,
+          estimate
+        };
+      }
+      
+      // Check gas cost vs reward
+      const gasPrice = await web3.eth.getGasPrice();
+      const estimatedGas = 300000; // Claim typically costs ~300k gas
+      const gasCostWei = BigInt(gasPrice) * BigInt(estimatedGas);
+      
+      if (BigInt(estimate.afterTax) < gasCostWei) {
+        return {
+          shouldClaim: false,
+          reason: 'Gas cost exceeds reward',
+          gasCost: web3.utils.fromWei(gasCostWei.toString(), 'ether')
+        };
+      }
+      
+      return {
+        shouldClaim: true,
+        finalAmount,
+        estimate
+      };
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Display Reward Breakdown UI">
+    ```javascript
+    async function getRewardBreakdownUI(delegatorAddress, validatorAddress) {
+      const estimate = await contract.methods.getEstimatedDelegatorReward(
+        delegatorAddress,
+        validatorAddress
+      ).call();
+      
+      if (estimate.pending == 0) {
+        return { hasRewards: false };
+      }
+      
+      const pending = parseFloat(web3.utils.fromWei(estimate.pending, 'ether'));
+      const afterProximity = parseFloat(web3.utils.fromWei(estimate.afterProximity, 'ether'));
+      const afterTax = parseFloat(web3.utils.fromWei(estimate.afterTax, 'ether'));
+      
+      return {
+        hasRewards: true,
+        breakdown: {
+          gross: pending.toFixed(4),
+          proximityPaid: (pending - afterProximity).toFixed(4),
+          netBeforeTax: afterProximity.toFixed(4),
+          taxPaid: (afterProximity - afterTax).toFixed(4),
+          youReceive: afterTax.toFixed(4)
+        },
+        percentages: {
+          proximityRate: ((pending - afterProximity) / pending * 100).toFixed(1),
+          taxRate: ((afterProximity - afterTax) / afterProximity * 100).toFixed(1),
+          finalYield: (afterTax / pending * 100).toFixed(1)
+        }
+      };
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Calculate APY/APR">
+    ```javascript
+    async function calculateAPY(delegatorAddress, validatorAddress) {
+      const dcInfo = await contract.methods.getDelegatorInfo(
+        delegatorAddress,
+        validatorAddress
+      ).call();
+      
+      if (dcInfo.status != 1) {
+        return { error: 'Not actively staking' };
+      }
+      
+      const estimate = await contract.methods.getEstimatedDelegatorReward(
+        delegatorAddress,
+        validatorAddress
+      ).call();
+      
+      // Calculate time staked
+      const currentBlock = await web3.eth.getBlockNumber();
+      const blocksStaked = currentBlock - dcInfo.joinedAt;
+      const daysStaked = (blocksStaked * 3) / (60 * 60 * 24);
+      
+      if (daysStaked < 1) {
+        return { error: 'Need at least 1 day of data' };
+      }
+      
+      const stake = parseFloat(web3.utils.fromWei(dcInfo.stakeAmount, 'ether'));
+      const rewards = parseFloat(web3.utils.fromWei(estimate.afterTax, 'ether'));
+      
+      // Daily return
+      const dailyReturn = rewards / daysStaked;
+      const dailyYield = (dailyReturn / stake) * 100;
+      
+      // Annualized
+      const apr = dailyYield * 365;
+      const apy = (Math.pow(1 + dailyYield / 100, 365) - 1) * 100;
+      
+      return {
+        stake,
+        rewards,
+        daysStaked: daysStaked.toFixed(1),
+        dailyReturn: dailyReturn.toFixed(4),
+        dailyYield: dailyYield.toFixed(2) + '%',
+        apr: apr.toFixed(2) + '%',
+        apy: apy.toFixed(2) + '%'
+      };
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Understanding the Numbers
+
+<Info>
+**Pending Rewards**: The raw amount before any deductions. This is what you "earned" in theory.
+</Info>
+
+<Info>
+**After Proximity**: After paying rewards to your uplines (max 8 levels). You may get bonuses if uplines are ineligible.
+</Info>
+
+<Info>
+**After Tax**: The final amount you'll receive. Tax typically includes burn (network deflation) and dev share.
+</Info>
+
+## Notes
+
+<Warning>
+This is an **estimate**. Actual rewards when claiming may differ slightly due to:
+- Additional rewards accumulated between estimation and claim
+- Changes in proximity configuration
+- Changes in tax rate
+</Warning>
+
+<Tip>
+Use this before claiming to:
+1. Decide if it's worth claiming (vs gas costs)
+2. Show users what they'll receive
+3. Calculate yields and APY
+4. Build reward calculators
+</Tip>
+
+## Related Methods
+
+<CardGroup cols={3}>
+  <Card title="getDelegatorInfo" href="/api-reference/rpc/eth/get-delegator-info">
+    Get delegator stake info
+  </Card>
+  <Card title="getProximityConfig" href="/api-reference/rpc/eth/get-proximity-config">
+    See proximity distribution settings
+  </Card>
+  <Card title="claimDelegatorReward" href="/api-reference/contracts/fenine-system#claimdelegatorreward">
+    Claim rewards (transaction)
+  </Card>
+</CardGroup>

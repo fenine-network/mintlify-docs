@@ -1,0 +1,408 @@
+---
+title: 'fenine_* Methods'
+description: 'Fenine-specific RPC methods for consensus and system contract queries'
+---
+
+## Snapshot & Signer Methods
+
+### fenine_getSnapshot
+
+Retrieves the consensus snapshot state at a given block.
+
+<ParamField path="blockNumber" type="string" default="latest">
+  Block number in hex (e.g., "0x1a4") or "latest"
+</ParamField>
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "fenine_getSnapshot",
+    "params": ["latest"],
+    "id": 1
+  }'
+```
+
+```javascript JavaScript
+const snapshot = await web3.eth.extend({
+  methods: [{
+    name: 'getSnapshot',
+    call: 'fenine_getSnapshot',
+    params: 1
+  }]
+}).getSnapshot('latest');
+```
+</CodeGroup>
+
+<ResponseField name="result" type="object">
+  Snapshot object containing:
+  
+  <Expandable title="Snapshot Fields">
+    <ResponseField name="Number" type="uint64">
+      Block number of the snapshot
+    </ResponseField>
+    <ResponseField name="Hash" type="string">
+      Block hash
+    </ResponseField>
+    <ResponseField name="Signers" type="array">
+      List of authorized signer addresses
+    </ResponseField>
+    <ResponseField name="Recents" type="object">
+      Recent signer activity (block number → address)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### fenine_getSnapshotAtHash
+
+Retrieves the snapshot at a specific block hash.
+
+<ParamField path="hash" type="string" required>
+  Block hash (e.g., "0x1234...")
+</ParamField>
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "fenine_getSnapshotAtHash",
+    "params": ["0x1234..."],
+    "id": 1
+  }'
+```
+</CodeGroup>
+
+---
+
+### fenine_getSigners
+
+Retrieves the list of authorized signers (bootstrap nodes) at a given block.
+
+<ParamField path="blockNumber" type="string" default="latest">
+  Block number in hex or "latest"
+</ParamField>
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "fenine_getSigners",
+    "params": ["latest"],
+    "id": 1
+  }'
+```
+
+```javascript JavaScript
+const Web3 = require('web3');
+const web3 = new Web3('https://rpc.fene.app');
+
+// Extend web3 with custom method
+web3.extend({
+  methods: [{
+    name: 'getSigners',
+    call: 'fenine_getSigners',
+    params: 1
+  }]
+});
+
+const signers = await web3.getSigners('latest');
+console.log('Current signers:', signers);
+```
+
+```python Python
+from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider('https://rpc.fene.app'))
+
+result = w3.provider.make_request(
+    'fenine_getSigners',
+    ['latest']
+)
+
+print(result['result'])
+```
+</CodeGroup>
+
+<ResponseField name="result" type="array">
+  Array of signer addresses (e.g., `["0x1234...", "0x5678..."]`)
+</ResponseField>
+
+---
+
+### fenine_getSignersAtHash
+
+Retrieves signers at a specific block hash.
+
+<ParamField path="hash" type="string" required>
+  Block hash
+</ParamField>
+
+---
+
+## System Contract Methods
+
+### fenine_getSystemContractAddress
+
+Returns the address of the FenineSystem contract.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "fenine_getSystemContractAddress",
+    "params": [],
+    "id": 1
+  }'
+```
+</CodeGroup>
+
+<ResponseField name="result" type="string">
+  Fixed address: `0x0000000000000000000000000000000000001000`
+</ResponseField>
+
+---
+
+### fenine_getSystemContractABI
+
+Returns the ABI of the FenineSystem contract.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "fenine_getSystemContractABI",
+    "params": [],
+    "id": 1
+  }'
+```
+
+```javascript JavaScript
+const abiResponse = await web3.eth.extend({
+  methods: [{
+    name: 'getSystemContractABI',
+    call: 'fenine_getSystemContractABI',
+    params: 0
+  }]
+}).getSystemContractABI();
+
+const abi = JSON.parse(abiResponse);
+const systemContract = new web3.eth.Contract(
+  abi,
+  '0x0000000000000000000000000000000000001000'
+);
+```
+</CodeGroup>
+
+<ResponseField name="result" type="string">
+  JSON string containing the complete ABI
+</ResponseField>
+
+<Tip>
+Use this method once to get the ABI, then cache it in your application. The ABI is static and won't change.
+</Tip>
+
+---
+
+### fenine_getNFTPassportABI
+
+Returns the ABI of the NFT Passport contract.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "fenine_getNFTPassportABI",
+    "params": [],
+    "id": 1
+  }'
+```
+</CodeGroup>
+
+---
+
+### fenine_getTaxManagerABI
+
+Returns the ABI of the Tax Manager contract.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "fenine_getTaxManagerABI",
+    "params": [],
+    "id": 1
+  }'
+```
+</CodeGroup>
+
+---
+
+### fenine_getContractConstants
+
+Returns important contract constants and configuration values.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://rpc.fene.app \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "fenine_getContractConstants",
+    "params": [],
+    "id": 1
+  }'
+```
+
+```javascript JavaScript
+const constants = await web3.eth.extend({
+  methods: [{
+    name: 'getContractConstants',
+    call: 'fenine_getContractConstants',
+    params: 0
+  }]
+}).getContractConstants();
+
+console.log('Block Epoch:', constants.blockEpoch);
+console.log('Max Validators:', constants.maxValidators);
+console.log('Min VA Stake:', constants.minValidatorStake);
+```
+</CodeGroup>
+
+<ResponseField name="result" type="object">
+  Object containing:
+  
+  <Expandable title="Constants">
+    <ResponseField name="systemContractAddress" type="string">
+      FenineSystem contract address
+    </ResponseField>
+    <ResponseField name="blockEpoch" type="number">
+      Blocks per epoch (200)
+    </ResponseField>
+    <ResponseField name="maxValidators" type="number">
+      Maximum active validators (101)
+    </ResponseField>
+    <ResponseField name="minValidatorStake" type="string">
+      Minimum VA stake in wei (10,000 FEN)
+    </ResponseField>
+    <ResponseField name="minDelegatorStake" type="string">
+      Minimum DC stake in wei (1,000 FEN)
+    </ResponseField>
+    <ResponseField name="validatorLockPeriod" type="number">
+      VA unstake lock period in blocks (50,000)
+    </ResponseField>
+    <ResponseField name="delegatorLockPeriod" type="number">
+      DC unstake lock period in blocks (25,000)
+    </ResponseField>
+    <ResponseField name="defaultCommission" type="number">
+      Default commission rate in basis points (500 = 5%)
+    </ResponseField>
+    <ResponseField name="maxCommission" type="number">
+      Maximum commission rate in basis points (1000 = 10%)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseExample>
+```json Example Response
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "systemContractAddress": "0x0000000000000000000000000000000000001000",
+    "blockEpoch": 200,
+    "maxValidators": 101,
+    "minValidatorStake": "10000000000000000000000",
+    "minDelegatorStake": "1000000000000000000000",
+    "validatorLockPeriod": 50000,
+    "delegatorLockPeriod": 25000,
+    "defaultCommission": 500,
+    "maxCommission": 1000
+  }
+}
+```
+</ResponseExample>
+
+---
+
+## Helper Methods
+
+### fenine_getCallDataHelper
+
+Returns a helper object for constructing call data for system contract queries.
+
+<Note>
+This is a utility method. In practice, use `eth_call` with the selectors provided in the [Quick Reference](/api-reference/quick-reference).
+</Note>
+
+---
+
+## Common Use Cases
+
+<AccordionGroup>
+  <Accordion title="Get Current Validator Set">
+    ```javascript
+    // Get active signers (bootstrap nodes)
+    const signers = await web3.getSigners('latest');
+    
+    // Get active validators from system contract
+    const systemContract = new web3.eth.Contract(abi, systemContractAddress);
+    const validators = await systemContract.methods.getActiveValidators().call();
+    ```
+  </Accordion>
+
+  <Accordion title="Monitor Epoch Changes">
+    ```javascript
+    const constants = await web3.getContractConstants();
+    const currentBlock = await web3.eth.getBlockNumber();
+    const currentEpoch = Math.floor(currentBlock / constants.blockEpoch);
+    const blocksUntilNextEpoch = constants.blockEpoch - (currentBlock % constants.blockEpoch);
+    
+    console.log(`Current epoch: ${currentEpoch}`);
+    console.log(`Blocks until next epoch: ${blocksUntilNextEpoch}`);
+    ```
+  </Accordion>
+
+  <Accordion title="Setup Contract Instance">
+    ```javascript
+    // Get ABI once
+    const abiJson = await web3.getSystemContractABI();
+    const abi = JSON.parse(abiJson);
+    
+    // Create contract instance
+    const systemContract = new web3.eth.Contract(
+      abi,
+      '0x0000000000000000000000000000000000001000'
+    );
+    
+    // Now you can call any contract method
+    const totalStake = await systemContract.methods.totalNetworkStake().call();
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="eth_* Methods" icon="ethereum" href="/api-reference/rpc/eth-namespace">
+    Standard Ethereum JSON-RPC methods
+  </Card>
+  <Card title="System Contract" icon="file-contract" href="/api-reference/contracts/fenine-system">
+    FenineSystem contract reference
+  </Card>
+</CardGroup>

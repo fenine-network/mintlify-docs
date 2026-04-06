@@ -1,0 +1,312 @@
+---
+title: 'getProximityConfig'
+description: 'Get proximity reward distribution configuration'
+api: 'POST eth_call'
+---
+
+## Overview
+
+Queries the FenineSystem contract to get the current proximity (referral) reward distribution configuration, including the total allocation and per-level distribution.
+
+## Contract Call Details
+
+<ParamField path="to" type="address" required>
+  `0x0000000000000000000000000000000000001000` (FenineSystem)
+</ParamField>
+
+<ParamField path="data" type="bytes" required>
+  Function call: `getProximityConfig()`
+</ParamField>
+
+## Response
+
+<ResponseField name="totalBps" type="uint16">
+  Total proximity allocation in basis points (e.g., 3000 = 30%)
+</ResponseField>
+
+<ResponseField name="depth" type="uint8">
+  Number of proximity levels (always 8)
+</ResponseField>
+
+<ResponseField name="rewardBps" type="uint16[8]">
+  Per-level distribution in basis points  
+  Default: `[700, 500, 400, 350, 300, 250, 250, 250]` = `[7%, 5%, 4%, 3.5%, 3%, 2.5%, 2.5%, 2.5%]`
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+```javascript Web3.js
+const Web3 = require('web3');
+const web3 = new Web3('https://rpc.fene.app');
+
+const abi = JSON.parse(await web3.getSystemContractABI());
+const contract = new web3.eth.Contract(
+  abi,
+  '0x0000000000000000000000000000000000001000'
+);
+
+const config = await contract.methods.getProximityConfig().call();
+
+console.log('Proximity Configuration:');
+console.log('═'.repeat(50));
+console.log('Total allocation:', config.totalBps / 100, '%');
+console.log('Depth:', config.depth, 'levels');
+console.log('\nPer-Level Distribution:');
+
+for (let i = 0; i < config.depth; i++) {
+  console.log(`Level ${i + 1}: ${config.rewardBps[i] / 100}%`);
+}
+
+// Calculate what's left for delegator
+const delegatorBase = 10000 - config.totalBps; // 100% - proximity
+console.log('\nDelegator base share:', delegatorBase / 100, '%');
+```
+
+```javascript ethers.js
+const { ethers } = require('ethers');
+
+const provider = new ethers.JsonRpcProvider('https://rpc.fene.app');
+
+const abiJson = await provider.send('fenine_getSystemContractABI', []);
+const abi = JSON.parse(abiJson);
+
+const contract = new ethers.Contract(
+  '0x0000000000000000000000000000000000001000',
+  abi,
+  provider
+);
+
+const [totalBps, depth, rewardBps] = await contract.getProximityConfig();
+
+console.log('Total proximity:', Number(totalBps) / 100, '%');
+console.log('Levels:', depth);
+console.log('Distribution:', rewardBps.map(bps => Number(bps) / 100 + '%'));
+```
+
+```python Python
+from web3 import Web3
+
+w3 = Web3(Web3.HTTPProvider('https://rpc.fene.app'))
+
+system_contract = w3.eth.contract(
+    address='0x0000000000000000000000000000000000001000',
+    abi=system_abi
+)
+
+total_bps, depth, reward_bps = system_contract.functions.getProximityConfig().call()
+
+print(f'Total proximity: {total_bps / 100}%')
+print(f'Depth: {depth} levels')
+print('Per-level distribution:')
+for i, bps in enumerate(reward_bps):
+    print(f'  Level {i+1}: {bps / 100}%')
+```
+</CodeGroup>
+
+## Default Configuration
+
+```javascript
+{
+  totalBps: 3000,      // 30% total
+  depth: 8,            // 8 levels
+  rewardBps: [
+    700,  // Level 1: 7%  (closest upline)
+    500,  // Level 2: 5%
+    400,  // Level 3: 4%
+    350,  // Level 4: 3.5%
+    300,  // Level 5: 3%
+    250,  // Level 6: 2.5%
+    250,  // Level 7: 2.5%
+    250   // Level 8: 2.5% (deepest upline)
+  ]
+}
+```
+
+## Understanding Proximity Distribution
+
+<Info>
+When a delegator claims rewards, a portion is distributed to their uplines (previous delegators to the same validator).
+</Info>
+
+### Example Flow
+
+```javascript
+// Delegator claims 100 FEN in rewards
+const claimAmount = 100;
+const config = await contract.methods.getProximityConfig().call();
+
+// Proximity distribution (30% of 100 = 30 FEN)
+const proximityPool = claimAmount * (config.totalBps / 10000); // 30 FEN
+
+// Per-level distribution
+const distributions = config.rewardBps.map((bps, i) => ({
+  level: i + 1,
+  uplineReceives: claimAmount * (bps / 10000),
+  percentage: bps / 100
+}));
+
+console.log('When claiming 100 FEN:');
+distributions.forEach(d => {
+  console.log(`Level ${d.level} upline receives: ${d.uplineReceives} FEN (${d.percentage}%)`);
+});
+
+// Delegator base (70% of 100 = 70 FEN + residual bonuses)
+const delegatorBase = claimAmount * ((10000 - config.totalBps) / 10000);
+console.log(`Delegator base: ${delegatorBase} FEN (70%)`);
+```
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Calculate Proximity Earnings">
+    ```javascript
+    async function calculateProximityEarnings(myPosition, delegatorsBelowMe) {
+      const config = await contract.methods.getProximityConfig().call();
+      
+      // Assume each delegator below me claims 100 FEN
+      const avgClaim = 100;
+      
+      let myEarnings = 0;
+      
+      for (let i = 0; i < Math.min(delegatorsBelowMe, config.depth); i++) {
+        const level = i; // 0-indexed from my perspective
+        if (level < config.depth) {
+          const earning = avgClaim * (config.rewardBps[level] / 10000);
+          myEarnings += earning;
+        }
+      }
+      
+      return {
+        delegatorsBelowMe,
+        avgClaimPerDelegator: avgClaim,
+        totalProximityEarnings: myEarnings.toFixed(2) + ' FEN',
+        perDelegator: (myEarnings / delegatorsBelowMe).toFixed(2) + ' FEN'
+      };
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Visualize Distribution">
+    ```javascript
+    async function visualizeProximityDistribution() {
+      const config = await contract.methods.getProximityConfig().call();
+      
+      console.log('Proximity Reward Distribution');
+      console.log('═'.repeat(60));
+      console.log(`Total allocated to uplines: ${config.totalBps / 100}%`);
+      console.log(`Delegator base (before residual): ${(10000 - config.totalBps) / 100}%`);
+      console.log('\n' + '─'.repeat(60));
+      
+      let cumulative = 0;
+      for (let i = 0; i < config.depth; i++) {
+        const pct = config.rewardBps[i] / 100;
+        cumulative += config.rewardBps[i];
+        
+        const bar = '█'.repeat(Math.floor(pct * 2));
+        console.log(`Level ${i + 1}: ${pct}%\t${bar}`);
+      }
+      
+      console.log('─'.repeat(60));
+      console.log(`Total:   ${cumulative / 100}%`);
+      console.log('\nNote: Ineligible upline rewards are split 50/50');
+      console.log('      between claimer and validator (as bonus)');
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Check if Config Changed">
+    ```javascript
+    async function monitorConfigChanges() {
+      let lastConfig = await contract.methods.getProximityConfig().call();
+      
+      setInterval(async () => {
+        const currentConfig = await contract.methods.getProximityConfig().call();
+        
+        if (currentConfig.totalBps != lastConfig.totalBps) {
+          console.log('⚠️  Proximity config changed!');
+          console.log('Old total:', lastConfig.totalBps / 100, '%');
+          console.log('New total:', currentConfig.totalBps / 100, '%');
+          
+          // Notify users, update UI, etc.
+          lastConfig = currentConfig;
+        }
+      }, 60000); // Check every minute
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Build Earnings Calculator">
+    ```javascript
+    async function buildEarningsCalculator(
+      myStake,
+      myPosition,
+      totalDelegatorsBelow,
+      avgMonthlyClaimsPerDelegator
+    ) {
+      const config = await contract.methods.getProximityConfig().call();
+      
+      // Direct staking rewards (validator share)
+      const vaInfo = await contract.methods.getValidatorInfo(validatorAddress).call();
+      const commission = vaInfo.commissionRate / 10000;
+      const myDirectYield = myStake * 0.05 * (1 - commission); // Assume 5% APY base
+      
+      // Proximity earnings
+      let monthlyProximity = 0;
+      for (let i = 0; i < Math.min(totalDelegatorsBelow, config.depth); i++) {
+        const levelEarning = avgMonthlyClaimsPerDelegator * (config.rewardBps[i] / 10000);
+        monthlyProximity += levelEarning;
+      }
+      
+      return {
+        staking: {
+          stake: myStake + ' FEN',
+          monthlyDirect: myDirectYield.toFixed(2) + ' FEN',
+          annualDirect: (myDirectYield * 12).toFixed(2) + ' FEN'
+        },
+        proximity: {
+          position: myPosition,
+          delegatorsBelow: totalDelegatorsBelow,
+          monthlyProximity: monthlyProximity.toFixed(2) + ' FEN',
+          annualProximity: (monthlyProximity * 12).toFixed(2) + ' FEN'
+        },
+        combined: {
+          monthlyTotal: (myDirectYield + monthlyProximity).toFixed(2) + ' FEN',
+          annualTotal: ((myDirectYield + monthlyProximity) * 12).toFixed(2) + ' FEN',
+          effectiveAPY: (((myDirectYield + monthlyProximity) * 12 / myStake) * 100).toFixed(2) + '%'
+        }
+      };
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Admin Configuration
+
+<Warning>
+Only the contract admin can change proximity configuration via `setProximityConfig()`. Maximum total allocation is 87% (8700 basis points) to protect delegators.
+</Warning>
+
+## Residual Distribution
+
+If uplines are **ineligible** (insufficient stake, unstaking, or stake too new), their rewards don't disappear:
+
+```javascript
+// Residual split:
+// - 50% returned to claimer (bonus)
+// - 50% to validator
+```
+
+## Related Methods
+
+<CardGroup cols={3}>
+  <Card title="getEstimatedDelegatorReward" href="/api-reference/rpc/eth/get-estimated-delegator-reward">
+    See proximity effect on rewards
+  </Card>
+  <Card title="getValidatorStakers" href="/api-reference/rpc/eth/get-validator-stakers">
+    See proximity chain order
+  </Card>
+  <Card title="setProximityConfig" href="/api-reference/contracts/fenine-system#setproximityconfig">
+    Admin function to update config
+  </Card>
+</CardGroup>
