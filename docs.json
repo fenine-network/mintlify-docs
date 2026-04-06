@@ -39,6 +39,15 @@
             ]
           },
           {
+            "group": "Staking",
+            "pages": [
+              "staking/overview",
+              "staking/run-validator",
+              "staking/become-delegator",
+              "staking/proximity"
+            ]
+          },
+          {
             "group": "Community",
             "pages": [
               "essentials/official-links"

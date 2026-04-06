@@ -1,0 +1,721 @@
+---
+title: 'Run a Validator'
+description: 'Complete guide to becoming a Fenine Network validator'
+icon: 'server'
+---
+
+## Introduction
+
+Becoming a validator on Fenine Network allows you to participate in consensus, earn block rewards, and receive commission from delegators. Unlike traditional PoS chains, Fenine uses **contract-layer validators** — you manage your validator entirely through smart contracts.
+
+<Info>
+**Requirements**:
+- **Minimum Stake**: 10,000 FEN
+- **Technical Skills**: Basic blockchain/smart contract understanding
+- **Hardware**: Optional (only needed for RPC/monitoring)
+- **Uptime**: Maintain &gt;95% to avoid jailing
+</Info>
+
+## How Fenine Validators Work
+
+<Warning>
+**Unique Architecture**: Fenine validators are managed at the **contract layer**, not the node layer.
+
+You do **NOT** need to:
+- Run special validator node software
+- Configure validator keys
+- Manage validator infrastructure
+
+Block production and signing happen automatically through the consensus protocol once you're registered.
+</Warning>
+
+### What You DO Need
+
+<CardGroup cols={2}>
+  <Card title="Smart Contract Registration" icon="file-contract">
+    Register via FenineSystem contract
+  </Card>
+  
+  <Card title="10,000 FEN Stake" icon="coins">
+    Lock minimum stake as collateral
+  </Card>
+  
+  <Card title="Wallet Security" icon="shield">
+    Secure validator address (hardware wallet recommended)
+  </Card>
+  
+  <Card title="Monitoring (Optional)" icon="chart-line">
+    Track performance and rewards
+  </Card>
+</CardGroup>
+
+## Prerequisites
+
+<Tabs>
+  <Tab title="FEN Tokens">
+    ### Acquire 10,000+ FEN
+    
+    **Purchase Options**:
+    
+    1. **Centralized Exchanges (CEX)**:
+       - Check [CoinMarketCap](https://coinmarketcap.com/currencies/fenines/) for listings
+       - Withdraw to your wallet
+    
+    2. **Decentralized Exchanges (DEX)**:
+       - Uniswap (if bridged to Ethereum)
+       - FenineSwap (native DEX)
+    
+    3. **Bridge from Other Chains**:
+       - [bridge.fene.app](https://bridge.fene.app)
+       - Support for ETH, BSC, Polygon
+    
+    <Warning>
+    Always withdraw to your own wallet, not exchange wallet. You need full control for staking.
+    </Warning>
+  </Tab>
+
+  <Tab title="Wallet Setup">
+    ### Configure Your Wallet
+    
+    **Recommended**: Hardware wallet (Ledger/Trezor) for validator security.
+    
+    **MetaMask Configuration**:
+    
+    ```javascript
+    Network Name: Fenine Network
+    RPC URL: https://rpc.fene.app
+    Chain ID: 5881
+    Currency Symbol: FEN
+    Block Explorer: https://explorer.fene.app
+    ```
+    
+    **Security Best Practices**:
+    - ✅ Use hardware wallet for validator address
+    - ✅ Keep backup of seed phrase offline
+    - ✅ Use separate hot wallet for operations
+    - ✅ Enable 2FA on all accounts
+    - ❌ Never share private keys
+    - ❌ Don't use exchange wallets
+  </Tab>
+
+  <Tab title="Technical Knowledge">
+    ### Skills Required
+    
+    **Essential**:
+    - Understand how to interact with smart contracts
+    - Know how to use MetaMask or similar wallet
+    - Basic understanding of blockchain concepts
+    - Ability to read transaction confirmations
+    
+    **Helpful (but not required)**:
+    - Read Solidity contract code
+    - Use Etherscan/block explorer
+    - Run a full node (for monitoring)
+    - Command line experience
+    
+    **Learning Resources**:
+    - [FPoS Architecture](/architecture/fpos)
+    - [FenineSystem Contract](/api-reference/contracts/fenine-system)
+    - [Ethereum.org Staking Guide](https://ethereum.org/staking)
+  </Tab>
+</Tabs>
+
+## Registration Process
+
+<Steps>
+  <Step title="Prepare Validator Address">
+    Use a secure wallet for your validator:
+    
+    ```bash
+    # If using hardware wallet (recommended)
+    # Connect Ledger/Trezor to MetaMask
+    
+    # Note your validator address
+    Validator Address: 0xYourValidatorAddress...
+    ```
+    
+    <Info>
+    This address will receive all validator rewards. Secure it properly!
+    </Info>
+  </Step>
+
+  <Step title="Approve FEN Transfer">
+    First, approve the FenineSystem contract to transfer your FEN:
+    
+    **Via stake.fene.app** (easiest):
+    1. Go to [stake.fene.app](https://stake.fene.app)
+    2. Connect wallet
+    3. Click "Become Validator"
+    4. Approve token spending (gas: ~50,000)
+    
+    **Via Contract (advanced)**:
+    
+    ```solidity
+    // FEN Token: 0x... (get from explorer)
+    // FenineSystem: 0x0000000000000000000000000000000000001000
+    
+    FEN.approve(0x0000000000000000000000000000000000001000, 10000 * 10**18)
+    ```
+    
+    Wait for transaction confirmation.
+  </Step>
+
+  <Step title="Register as Validator">
+    Call `registerValidator` with your parameters:
+    
+    **Parameters**:
+    - `commission`: 1-100 (e.g., 5 = 5% commission)
+    - `description`: Your validator name/description
+    
+    **Via stake.fene.app**:
+    1. Enter commission rate (suggested: 5-10%)
+    2. Enter validator description
+    3. Click "Register Validator"
+    4. Confirm transaction (gas: ~200,000)
+    
+    **Via Contract**:
+    
+    ```javascript
+    // Using ethers.js
+    const fenineSystem = new ethers.Contract(
+      "0x0000000000000000000000000000000000001000",
+      FENINE_SYSTEM_ABI,
+      signer
+    );
+    
+    const tx = await fenineSystem.registerValidator(
+      5,  // 5% commission
+      "MyValidator - Reliable & Secure"
+    );
+    
+    await tx.wait();
+    console.log("Registered! Waiting for next epoch...");
+    ```
+    
+    <Info>
+    Registration takes effect at the **next epoch** (within ~10 minutes).
+    </Info>
+  </Step>
+
+  <Step title="Verify Registration">
+    Check your validator status:
+    
+    **Via Web Interface**:
+    - Visit [stake.fene.app/validators](https://stake.fene.app/validators)
+    - Search for your address
+    - Status should show "Active" after next epoch
+    
+    **Via RPC**:
+    
+    ```bash
+    curl -X POST https://rpc.fene.app \
+      -H "Content-Type: application/json" \
+      -d '{
+        "jsonrpc": "2.0",
+        "method": "eth_getValidatorInfo",
+        "params": ["0xYourValidatorAddress"],
+        "id": 1
+      }'
+    ```
+    
+    Expected response:
+    
+    ```json
+    {
+      "result": {
+        "status": "active",
+        "stake": "10000000000000000000000",
+        "commission": 5,
+        "jailCount": 0,
+        "lastRewardEpoch": 12345
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Monitor Your Validator">
+    Track performance and rewards:
+    
+    **Dashboard**: [stake.fene.app/my-validator](https://stake.fene.app/my-validator)
+    
+    **Key Metrics**:
+    - Uptime percentage
+    - Blocks produced
+    - Rewards earned
+    - Delegator count
+    - Total delegated stake
+    
+    Set up alerts for:
+    - Jailing events
+    - Commission changes
+    - Large delegations
+  </Step>
+</Steps>
+
+## Validator Operations
+
+### Check Validator Status
+
+```javascript
+// Using ethers.js
+const info = await fenineSystem.getValidatorInfo(validatorAddress);
+
+console.log("Status:", info.status);  // 0=Pending, 1=Active, 2=Jailed, 3=Unbonding
+console.log("Stake:", ethers.formatEther(info.stake));
+console.log("Commission:", info.commission, "%");
+console.log("Delegated:", ethers.formatEther(info.totalDelegated));
+```
+
+### Update Commission Rate
+
+```javascript
+// Change commission (1-100%)
+const tx = await fenineSystem.updateValidatorCommission(10);  // 10%
+await tx.wait();
+
+console.log("Commission updated to 10%");
+```
+
+<Warning>
+Commission changes take effect in the next epoch. Frequent changes may frustrate delegators.
+</Warning>
+
+### Claim Rewards
+
+```javascript
+// Claim accumulated rewards (10% tax applies)
+const tx = await fenineSystem.claimValidatorRewards();
+await tx.wait();
+
+// Check balance
+const rewards = await fenineSystem.getValidatorRewards(validatorAddress);
+console.log("Claimable:", ethers.formatEther(rewards), "FEN");
+```
+
+**Tax Breakdown**:
+- 10% tax on claimed rewards
+- 5% burned (deflationary)
+- 5% to treasury (development fund)
+
+### Increase Stake
+
+```javascript
+// Add more stake (no maximum)
+const amount = ethers.parseEther("5000");  // Add 5,000 FEN
+
+await fenToken.approve(fenineSystemAddress, amount);
+await fenineSystem.addStake(amount);
+
+console.log("Stake increased by 5,000 FEN");
+```
+
+Higher stake = higher rewards share.
+
+### Unregister Validator
+
+```javascript
+// Exit validator set (21-day unbonding period)
+const tx = await fenineSystem.unregisterValidator();
+await tx.wait();
+
+console.log("Unbonding started. Withdrawal available in 21 days.");
+
+// After 21 days:
+await fenineSystem.withdrawStake();
+```
+
+<Warning>
+During unbonding:
+- Stop earning rewards immediately
+- Delegators must redelegate
+- Cannot cancel unbonding
+</Warning>
+
+## Validator Economics
+
+### Revenue Streams
+
+<Tabs>
+  <Tab title="Block Rewards">
+    **Base Emission**: 3.5 FEN per block
+    
+    Your share depends on your stake proportion:
+    
+    $$
+    R_{\\text{base}} = \\frac{S_{\\text{validator}}}{S_{\\text{total}}} \\times E_{\\text{epoch}}
+    $$
+    
+    **Example**:
+    - Your stake: 10,000 FEN
+    - Total network: 10,000,000 FEN
+    - Epoch emission: 700 FEN
+    
+    $$
+    R = \\frac{10,000}{10,000,000} \\times 700 = 0.7 \\text{ FEN/epoch}
+    $$
+    
+    **Daily**: 0.7 × 144 epochs = 100.8 FEN
+    
+    **Annual**: ~36,792 FEN ≈ **368% APY** on 10K stake alone!
+  </Tab>
+
+  <Tab title="Commission">
+    Earn commission on delegated stake:
+    
+    $$
+    R_{\\text{commission}} = \\frac{S_{\\text{delegated}}}{S_{\\text{total}}} \\times E_{\\text{epoch}} \\times c
+    $$
+    
+    **Example**:
+    - Delegated to you: 100,000 FEN
+    - Your commission: 5%
+    - Total network: 10,000,000 FEN
+    
+    $$
+    R = \\frac{100,000}{10,000,000} \\times 700 \\times 0.05 = 0.35 \\text{ FEN/epoch}
+    $$
+    
+    **Monthly**: 0.35 × 144 × 30 = 1,512 FEN
+    
+    More delegators = more commission!
+  </Tab>
+
+  <Tab title="Proximity Rewards">
+    Earn from **8 levels** of referrals:
+    
+    | Level | % of Their Rewards | If They Earn 100 FEN |
+    |-------|-------------------|---------------------|
+    | 1 (Direct) | 7% | You earn 7 FEN |
+    | 2 | 5% | 5 FEN |
+    | 3 | 3% | 3 FEN |
+    | 4 | 2% | 2 FEN |
+    | 5 | 1.5% | 1.5 FEN |
+    | 6 | 1% | 1 FEN |
+    | 7 | 0.5% | 0.5 FEN |
+    | 8 | 0.25% | 0.25 FEN |
+    
+    **Building Your Network**:
+    1. Share your referral code
+    2. Referred users stake with you
+    3. Earn from their rewards automatically
+    4. Compounds across 8 levels
+    
+    See [Proximity Rewards](/staking/proximity) for strategies.
+  </Tab>
+
+  <Tab title="Transaction Fees">
+    Validators receive **priority fees** (tips):
+    
+    $$
+    F_{\\text{validator}} = \\sum_{\\text{tx} \\in B} \\text{PriorityFee}_{\\text{tx}} \\times G_{\\text{used}}
+    $$
+    
+    **Base fees** are burned (EIP-1559), but priority fees go to you.
+    
+    **Example Block**:
+    - 100 transactions
+    - Average priority fee: 2 gwei
+    - Average gas used: 50,000
+    
+    $$
+    F = 100 \\times 2 \\times 10^9 \\times 50,000 \\times 10^{-18} = 0.01 \\text{ FEN}
+    $$
+    
+    During high activity: **1-5 FEN/block** possible!
+  </Tab>
+</Tabs>
+
+### Example Monthly Earnings
+
+**Scenario**: Small validator
+- Your stake: 10,000 FEN
+- Delegated: 50,000 FEN
+- Commission: 5%
+- Referral network: 10 people (Level 1-2)
+- Network total: 5,000,000 FEN
+
+**Calculations**:
+
+```
+Base rewards:
+  (10,000 / 5,000,000) × 700 × 144 × 30 = 6,048 FEN
+
+Commission rewards:
+  (50,000 / 5,000,000) × 700 × 144 × 30 × 0.05 = 1,512 FEN
+
+Proximity rewards (estimated):
+  10 referrals earning avg 200 FEN/month
+  Level 1 (5 people): 5 × 200 × 0.07 = 70 FEN
+  Level 2 (5 people): 5 × 200 × 0.05 = 50 FEN
+  Total proximity: 120 FEN
+
+Priority fees (avg):
+  ~0.01 FEN/block × 28,800 blocks/day × 30 = 8.64 FEN
+
+──────────────────────────────────────────
+TOTAL: 7,688.64 FEN/month
+
+APY on 10K stake: (7,688.64 × 12 / 10,000) × 100 = 922% APY!
+```
+
+<Info>
+APY decreases as network grows (more competition for rewards), but remains highly profitable for early validators.
+</Info>
+
+## Slashing & Penalties
+
+### Slashing Conditions
+
+<Warning>
+Validators can lose stake for these violations:
+</Warning>
+
+| Offense | Penalty | Auto-Jail | Description |
+|---------|---------|-----------|-------------|
+| **Double-Sign** | -5% stake | Yes | Sign two different blocks at same height |
+| **Invalid Block** | -1% stake | Yes | Propose block that fails validation |
+| **Downtime** | Jail only | Yes | &lt;95% uptime over 200 blocks |
+| **Censorship** | Warning → Jail | After 3 warnings | Consistently ignore valid transactions |
+
+### Jailing
+
+**What is Jailing?**
+- Temporary removal from active validator set
+- Stop earning rewards
+- Keep your stake (no loss)
+- Can manually exit or wait for unjail
+
+**How to Get Unjailed**:
+
+```javascript
+// Manual unjail (if eligible)
+await fenineSystem.unjailValidator();
+
+// Or exit and re-register
+await fenineSystem.unregisterValidator();
+// Wait 21 days, withdraw, then re-register
+```
+
+**Unjail Conditions**:
+- Waited at least 1 epoch (10 minutes)
+- Fixed underlying issue
+- No active slashing penalties
+
+### Avoiding Slashing
+
+<Check>
+**Best Practices**:
+- ✅ Keep validator key secure (never share)
+- ✅ Don't run validator on multiple machines
+- ✅ Monitor uptime regularly
+- ✅ Have backup monitoring in place
+- ✅ React quickly to jailing events
+- ✅ Keep sufficient FEN balance for gas
+</Check>
+
+## Running a Full Node (Optional)
+
+While not required for validation, running a node provides:
+
+- Independent RPC access
+- Network monitoring
+- Block validation
+- Decentralization support
+
+### Quick Node Setup
+
+```bash
+# Download fene-geth
+wget https://github.com/fenines-network/fene-geth/releases/download/v1.0.0/fene-geth-linux-amd64.tar.gz
+
+# Extract and install
+tar -xzf fene-geth-linux-amd64.tar.gz
+sudo mv fene-geth /usr/local/bin/
+
+# Create data directory
+sudo mkdir -p /var/lib/fenine
+
+# Download genesis
+wget https://raw.githubusercontent.com/fenines-network/genesis/main/mainnet.json -O /var/lib/fenine/genesis.json
+
+# Initialize
+fene-geth init /var/lib/fenine/genesis.json --datadir /var/lib/fenine
+
+# Run node
+fene-geth --datadir /var/lib/fenine --http --http.addr 0.0.0.0 --http.api eth,net,web3,fenine
+```
+
+See [Non-Validator Node Setup](/node-operators/non-validator-setup) for complete guide.
+
+## Delegator Management
+
+### Attract Delegators
+
+**Strategies**:
+
+1. **Competitive Commission**: 5-10% is typical
+2. **High Uptime**: Aim for &gt;99%
+3. **Clear Communication**: Website, Twitter, Discord
+4. **Security Transparency**: Hardware wallet, audits
+5. **Referral Program**: Share proximity rewards
+
+### Monitor Delegations
+
+```javascript
+// Get all delegators
+const delegators = await fenineSystem.getValidatorDelegators(validatorAddress);
+
+console.log("Total delegators:", delegators.length);
+
+// Get delegation details
+for (const delegator of delegators) {
+  const amount = await fenineSystem.getDelegation(delegator, validatorAddress);
+  console.log(`${delegator}: ${ethers.formatEther(amount)} FEN`);
+}
+```
+
+### Communicate with Delegators
+
+<CardGroup cols={2}>
+  <Card title="Discord Server" icon="discord">
+    Create dedicated validator channel
+  </Card>
+  
+  <Card title="Twitter/X" icon="twitter">
+    Regular updates and announcements
+  </Card>
+  
+  <Card title="Website" icon="globe">
+    Validator profile and statistics
+  </Card>
+  
+  <Card title="Email List" icon="envelope">
+    Important notifications
+  </Card>
+</CardGroup>
+
+## Validator Dashboard
+
+### Key Metrics to Track
+
+<Tabs>
+  <Tab title="Performance">
+    - **Uptime**: Target &gt;99%
+    - **Blocks Produced**: Should match expected
+    - **Missed Blocks**: Investigate if &gt;1%
+    - **Jailing Events**: Should be 0
+    - **Slashing Events**: Should be 0
+  </Tab>
+
+  <Tab title="Economics">
+    - **Total Stake**: Your + delegated
+    - **Rewards Earned**: Track daily/weekly
+    - **Commission Earned**: From delegators
+    - **Proximity Rewards**: From referral network
+    - **APY**: Monitor trend over time
+  </Tab>
+
+  <Tab title="Network">
+    - **Rank**: Position by total stake
+    - **Delegator Count**: Growth over time
+    - **Network Share**: % of total stake
+    - **Competitor Analysis**: Compare commission/performance
+  </Tab>
+</Tabs>
+
+**Monitoring Tools**:
+- [stake.fene.app/my-validator](https://stake.fene.app/my-validator)
+- [explorer.fene.app/validators](https://explorer.fene.app/validators)
+- Custom dashboard with Grafana ([guide](/node-operators/monitoring))
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Registration transaction failed">
+    **Common causes**:
+    - Insufficient FEN balance for gas
+    - Didn't approve token transfer first
+    - Already registered as validator
+    - Commission rate out of range (1-100)
+    
+    **Solution**:
+    ```javascript
+    // Check if already registered
+    const info = await fenineSystem.getValidatorInfo(yourAddress);
+    console.log("Status:", info.status);
+    
+    // If status > 0, you're already registered
+    ```
+  </Accordion>
+
+  <Accordion title="Not producing blocks">
+    **Check**:
+    1. Registration confirmed (check on explorer)
+    2. Waited for next epoch (10 minutes)
+    3. Status is "Active" (not Pending/Jailed)
+    4. Sufficient stake (10,000+ FEN)
+    
+    **Verify**:
+    ```bash
+    curl -X POST https://rpc.fene.app \
+      -d '{"jsonrpc":"2.0","method":"eth_getValidatorInfo","params":["0xYourAddress"],"id":1}'
+    ```
+  </Accordion>
+
+  <Accordion title="Got jailed unexpectedly">
+    **Reasons**:
+    - Downtime (even if not your fault)
+    - Network issues
+    - Double-signing (if key compromised)
+    
+    **Recovery**:
+    1. Wait 1 epoch (10 minutes)
+    2. Call `unjailValidator()`
+    3. Monitor for recurring jails
+    4. If persistent, check security
+  </Accordion>
+
+  <Accordion title="Rewards lower than expected">
+    **Check**:
+    - Network total stake (increased competition)
+    - Your commission rate (too high?)
+    - Missed blocks (uptime issues)
+    - Proximity network activity
+    
+    **Compare**:
+    ```javascript
+    const totalStake = await fenineSystem.getTotalStake();
+    const myShare = yourStake / totalStake;
+    console.log("Your network share:", (myShare * 100).toFixed(4), "%");
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Become a Delegator" icon="users" href="/staking/become-delegator">
+    Also delegate to other validators
+  </Card>
+  
+  <Card title="Proximity Rewards" icon="network-wired" href="/staking/proximity">
+    Build your referral network
+  </Card>
+  
+  <Card title="FenineSystem API" icon="code" href="/api-reference/contracts/fenine-system">
+    Complete contract reference
+  </Card>
+  
+  <Card title="Monitoring Setup" icon="chart-line" href="/node-operators/monitoring">
+    Track validator performance
+  </Card>
+</CardGroup>
+
+<Note>
+**Validator Support**:
+- Discord: [#validator-support](https://discord.gg/fenines)
+- Email: validators@fene.network
+- Office Hours: Fridays 2PM UTC
+
+Share your validator address in Discord to get verified badge!
+</Note>

@@ -62,7 +62,7 @@ Before you begin, ensure you have:
     Version: 1.x.x
     Architecture: amd64
     Protocol Versions: [65]
-    Network Id: 5881
+    Network Id: 89
     ```
   </Step>
 
@@ -110,7 +110,7 @@ Before you begin, ensure you have:
     
     ```toml
     [Eth]
-    NetworkId = 5881
+    NetworkId = 89
     SyncMode = "full"
     NoPruning = false
     
@@ -284,7 +284,7 @@ const blockNumber = await provider.getBlockNumber();
 console.log("Current block:", blockNumber);
 
 const network = await provider.getNetwork();
-console.log("Chain ID:", network.chainId); // Should be 5881
+console.log("Chain ID:", network.chainId); // Should be 89
 ```
 
 ## Archive Mode (Optional)
